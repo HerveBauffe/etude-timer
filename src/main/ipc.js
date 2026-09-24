@@ -1,6 +1,6 @@
 'use strict';
 
-const { ipcMain } = require('electron');
+const { ipcMain, dialog, shell } = require('electron');
 const { sendPhaseEndNotification } = require('./notifications');
 
 function registerIpcHandlers({ getStore, getSync, getWindow }) {
@@ -38,6 +38,30 @@ function registerIpcHandlers({ getStore, getSync, getWindow }) {
   h('sync:now', () => getSync().syncNow());
   h('sync:restart', () => { getSync().start(); return true; });
   h('sync:stop', () => { getSync().stop(); return true; });
+
+  h('data:getInfo', () => getStore().getDataInfo());
+  h('data:chooseFolder', async () => {
+    const win = getWindow();
+    const result = await dialog.showOpenDialog(win, {
+      title: 'Choisir un dossier pour les données',
+      properties: ['openDirectory', 'createDirectory']
+    });
+    if (result.canceled || !result.filePaths[0]) return { ok: false, canceled: true };
+    try {
+      getStore().setDataDir(result.filePaths[0]);
+      return { ok: true, info: getStore().getDataInfo() };
+    } catch (err) {
+      return { ok: false, message: err.message };
+    }
+  });
+  h('data:resetFolder', () => {
+    getStore().resetDataDir();
+    return { ok: true, info: getStore().getDataInfo() };
+  });
+  h('data:openFolder', () => {
+    shell.showItemInFolder(getStore().getFilePath());
+    return true;
+  });
 }
 
 module.exports = { registerIpcHandlers };

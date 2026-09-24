@@ -6,6 +6,19 @@ const crypto = require('crypto');
 const { app, safeStorage } = require('electron');
 
 const DATA_VERSION = 1;
+const LOCATION_FILE_NAME = 'location.json';
+
+// Dossier "point fixe" toujours prévisible, utilisé pour retrouver l'emplacement choisi par
+// l'utilisateur (s'il en a choisi un). En version portable Windows, electron-builder place
+// l'exécutable dans un dossier temporaire et fournit PORTABLE_EXECUTABLE_DIR : le dossier réel
+// où se trouve le .exe lancé par l'utilisateur. On y stocke alors les données à côté de l'exe,
+// comme on l'attend d'une version portable (autonome, déplaçable sur une clé USB).
+function getBootstrapDir() {
+  if (process.env.PORTABLE_EXECUTABLE_DIR) {
+    return path.join(process.env.PORTABLE_EXECUTABLE_DIR, 'EtudeTimerData');
+  }
+  return app.getPath('userData');
+}
 
 function defaultData() {
   const now = new Date().toISOString();
@@ -36,10 +49,64 @@ function defaultData() {
 
 class Store {
   constructor() {
-    this.userDataPath = app.getPath('userData');
-    this.filePath = path.join(this.userDataPath, 'data.json');
+    this.bootstrapDir = getBootstrapDir();
+    this.dataDir = this._resolveDataDir();
+    this.filePath = path.join(this.dataDir, 'data.json');
     this.data = null;
     this.dirty = false;
+  }
+
+  _locationFilePath() {
+    return path.join(this.bootstrapDir, LOCATION_FILE_NAME);
+  }
+
+  _resolveDataDir() {
+    try {
+      const locPath = this._locationFilePath();
+      if (fs.existsSync(locPath)) {
+        const parsed = JSON.parse(fs.readFileSync(locPath, 'utf-8'));
+        if (parsed && parsed.dataDir && fs.existsSync(parsed.dataDir)) {
+          return parsed.dataDir;
+        }
+      }
+    } catch (err) {
+      console.error("Emplacement personnalisé illisible, retour au dossier par défaut :", err);
+    }
+    return this.bootstrapDir;
+  }
+
+  getDataInfo() {
+    return {
+      filePath: this.filePath,
+      dataDir: this.dataDir,
+      bootstrapDir: this.bootstrapDir,
+      isPortable: !!process.env.PORTABLE_EXECUTABLE_DIR,
+      isCustom: path.resolve(this.dataDir) !== path.resolve(this.bootstrapDir)
+    };
+  }
+
+  getFilePath() { return this.filePath; }
+
+  // Change l'emplacement des données : copie le fichier existant (sans supprimer l'ancien) puis
+  // enregistre le choix dans le fichier-pointeur, à l'emplacement fixe habituel.
+  setDataDir(newDir) {
+    fs.mkdirSync(newDir, { recursive: true });
+    const newFilePath = path.join(newDir, 'data.json');
+    if (!fs.existsSync(newFilePath) && fs.existsSync(this.filePath)) {
+      fs.copyFileSync(this.filePath, newFilePath);
+    }
+    fs.mkdirSync(this.bootstrapDir, { recursive: true });
+    fs.writeFileSync(this._locationFilePath(), JSON.stringify({ dataDir: newDir }, null, 2), 'utf-8');
+    this.dataDir = newDir;
+    this.filePath = newFilePath;
+    this.load();
+  }
+
+  resetDataDir() {
+    try { fs.unlinkSync(this._locationFilePath()); } catch (_) { /* pas de pointeur, rien à faire */ }
+    this.dataDir = this.bootstrapDir;
+    this.filePath = path.join(this.dataDir, 'data.json');
+    this.load();
   }
 
   load() {

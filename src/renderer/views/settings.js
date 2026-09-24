@@ -1,8 +1,9 @@
-import { actions, getState } from '../lib/state.js';
+import { actions, getState, init } from '../lib/state.js';
 import { applyTheme } from '../lib/theme.js';
 
 let passwordTouched = false;
 let lastSyncMessage = null; // {ok, message}
+let dataLocationMessage = null; // {ok, message}
 
 function n(val, fallback) {
   const num = Number(val);
@@ -15,11 +16,12 @@ function formatLastSynced(iso) {
   return `Dernière synchro : ${d.toLocaleDateString('fr-FR')} à ${d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`;
 }
 
-export function renderSettingsView() {
+export async function renderSettingsView() {
   const container = document.getElementById('view-settings');
   if (!container) return;
   const settings = getState().data.settings;
   const p = settings.pomodoro, f = settings.flow, w = settings.webdav;
+  const dataInfo = await window.api.getDataInfo();
 
   container.innerHTML = `
     <h1>Réglages</h1>
@@ -65,6 +67,29 @@ export function renderSettingsView() {
     </div>
 
     <div class="settings-section">
+      <h2>Emplacement des données</h2>
+      <p class="desc">
+        ${dataInfo.isPortable
+          ? "Version portable détectée : les données sont stockées à côté de l'exécutable par défaut (pas dans ton profil Windows), pour rester déplaçables avec l'app."
+          : "Par défaut, les données sont stockées dans le dossier de profil de l'application."}
+        Tu peux choisir un autre dossier à tout moment (clé USB, dossier synchronisé, autre disque...).
+      </p>
+      <div class="field-row stacked">
+        <label>Fichier actuel</label>
+        <code style="display:block;padding:9px 10px;border-radius:7px;border:1px solid var(--border);background:var(--surface-2);font-size:12.5px;word-break:break-all;">${dataInfo.filePath}</code>
+        <span class="field-hint">${dataInfo.isCustom ? 'Emplacement personnalisé.' : 'Emplacement par défaut.'}</span>
+      </div>
+      <div class="settings-actions">
+        <button class="btn" id="btnOpenDataFolder">Ouvrir le dossier</button>
+        <button class="btn" id="btnChooseDataFolder">Choisir un autre dossier…</button>
+        ${dataInfo.isCustom ? `<button class="btn btn-ghost" id="btnResetDataFolder">Revenir au dossier par défaut</button>` : ''}
+      </div>
+      <p class="settings-status ${dataLocationMessage ? (dataLocationMessage.ok ? 'ok' : 'error') : ''}">
+        ${dataLocationMessage ? dataLocationMessage.message : ''}
+      </p>
+    </div>
+
+    <div class="settings-section">
       <h2>Synchronisation WebDAV (Nextcloud)</h2>
       <p class="desc">Garde tes données à jour entre plusieurs ordinateurs. Le mot de passe est chiffré sur ce poste quand c'est possible.</p>
       <div class="field-row">
@@ -104,6 +129,30 @@ export function renderSettingsView() {
       </p>
     </div>
   `;
+
+  document.getElementById('btnOpenDataFolder').addEventListener('click', () => window.api.openDataFolder());
+
+  document.getElementById('btnChooseDataFolder').addEventListener('click', async () => {
+    const result = await window.api.chooseDataFolder();
+    if (result.canceled) return;
+    if (result.ok) {
+      dataLocationMessage = { ok: true, message: 'Dossier mis à jour. Tes données ont été copiées vers ce nouvel emplacement (l\'ancien fichier est conservé tel quel).' };
+      await init();
+    } else {
+      dataLocationMessage = { ok: false, message: `Impossible de changer de dossier : ${result.message}` };
+    }
+    renderSettingsView();
+  });
+
+  const resetBtn = document.getElementById('btnResetDataFolder');
+  if (resetBtn) {
+    resetBtn.addEventListener('click', async () => {
+      await window.api.resetDataFolder();
+      dataLocationMessage = { ok: true, message: 'Retour au dossier par défaut.' };
+      await init();
+      renderSettingsView();
+    });
+  }
 
   // Pomodoro (sauvegarde au blur/changement)
   const savePomodoro = () => actions.updateSettings({

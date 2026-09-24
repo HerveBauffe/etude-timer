@@ -35,6 +35,11 @@ contextBridge.exposeInMainWorld('api', {
   syncRestart: invoke('sync:restart'),
   syncStop: invoke('sync:stop'),
 
+  getDataInfo: invoke('data:getInfo'),
+  chooseDataFolder: invoke('data:chooseFolder'),
+  resetDataFolder: invoke('data:resetFolder'),
+  openDataFolder: invoke('data:openFolder'),
+
   onSyncStatusChanged: (callback) => {
     const listener = (event, status) => callback(status);
     ipcRenderer.on('sync:status-changed', listener);
