@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;" />
+<title>Étude Timer</title>
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="app">
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">◆</span>
+        <span class="brand-name">Étude Timer</span>
+      </div>
+      <nav class="tabs" role="tablist" aria-label="Navigation principale">
+        <button class="tab" data-tab="timer" role="tab" aria-selected="true">Minuteur</button>
+        <button class="tab" data-tab="stats" role="tab" aria-selected="false">Statistiques</button>
+        <button class="tab" data-tab="settings" role="tab" aria-selected="false">Réglages</button>
+      </nav>
+      <div class="sync-indicator" id="syncIndicator" title="État de la synchronisation">
+        <span class="sync-dot" id="syncDot"></span>
+        <span id="syncLabel">Sync désactivée</span>
+      </div>
+    </header>
+
+    <div class="body">
+      <aside class="sidebar" id="sidebar" aria-label="Dossiers, unités d'enseignement et cours">
+        <div class="sidebar-actions">
+          <button class="btn btn-ghost btn-sm" id="btnAddFolder">+ Dossier</button>
+          <button class="btn btn-ghost btn-sm" id="btnAddRootUE">+ UE</button>
+        </div>
+        <div class="tree" id="tree"></div>
+        <div class="archive-toggle" id="archiveToggle">
+          <span class="caret" id="archiveCaret">▸</span> Archives (<span id="archiveCount">0</span>)
+        </div>
+        <div class="tree archive-tree" id="archiveTree" hidden></div>
+      </aside>
+
+      <main class="content">
+        <section class="view" id="view-timer"></section>
+        <section class="view" id="view-stats" hidden></section>
+        <section class="view" id="view-settings" hidden></section>
+      </main>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="modalOverlay" hidden>
+    <div class="modal" id="modal"></div>
+  </div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

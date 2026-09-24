@@ -1,0 +1,51 @@
+{
+  "name": "etude-timer",
+  "version": "1.0.0",
+  "description": "Suivi du temps d'étude par cours, avec minuteur Pomodoro / Flow Zone et synchronisation WebDAV (Nextcloud).",
+  "main": "src/main/main.js",
+  "author": "Toi",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "dist:linux": "electron-builder --linux",
+    "dist:win": "electron-builder --win",
+    "dist": "electron-builder --linux --win"
+  },
+  "dependencies": {
+    "webdav": "^5.11.0"
+  },
+  "devDependencies": {
+    "electron": "^44.4.5",
+    "electron-builder": "^26.15.3"
+  },
+  "build": {
+    "appId": "com.etudiant.etudetimer",
+    "productName": "Étude Timer",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "src/**/*",
+      "package.json"
+    ],
+    "linux": {
+      "target": [
+        { "target": "AppImage", "arch": ["x64"] },
+        { "target": "deb", "arch": ["x64"] }
+      ],
+      "category": "Education"
+    },
+    "win": {
+      "target": [
+        { "target": "nsis", "arch": ["x64"] },
+        { "target": "portable", "arch": ["x64"] }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  }
+}
