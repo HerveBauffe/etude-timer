@@ -1,6 +1,6 @@
 {
   "name": "etude-timer",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "Suivi du temps d'étude par cours, avec minuteur Pomodoro / Flow Zone et synchronisation WebDAV (Nextcloud).",
   "main": "src/main/main.js",
   "author": "Toi",

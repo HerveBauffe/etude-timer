@@ -96,13 +96,34 @@ block the shutdown).
 
 ## Where is the data stored?
 
-In a `data.json` file located in the app’s data folder:
+In a `data.json` file, at a location that depends on the build:
 
-- **Windows**: `%APPDATA%\etude-timer\data.json`
+- **Windows (installed version)**: `%APPDATA%\etude-timer\data.json`
+- **Windows (portable version)**: in an `EtudeTimerData` folder created right next to the
+  `.exe` you launch — the portable build never touches your Windows user profile, so it stays
+  fully self-contained (e.g. on a USB drive).
 - **Linux**: `~/.config/etude-timer/data.json`
 
-This is the same file that is sent to your WebDAV server. You can back it up
-manually at any time by simply copying it.
+This is the same file that is sent to your WebDAV server if sync is enabled.
+
+### Changing this location
+
+In **Settings → Data Location**, the **Choose another folder…** button lets you move storage
+anywhere (USB drive, a synced folder like OneDrive/Dropbox, another disk...). Your existing data
+is copied to the new folder — the old file is not deleted, as a safety net. The choice is
+remembered in a small `location.json` pointer file at the usual default location above, and is
+re-read on every startup. **Reset to default folder** undoes this at any time.
+
+## Troubleshooting
+
+**Windows: `Unable to move the cache: Access denied (0x5)` / `Gpu Cache Creation failed`**
+This happens when two copies of the app try to run at the same time (e.g. the app was
+double-clicked twice, or a previous instance hadn't fully closed yet) and both fight over the
+same cache files. Since v1.0.2 the app refuses to open a second window in that case — it just
+brings the already-running one to the front instead — which should prevent this. If it still
+happens: make sure no `Étude Timer` process is left in Task Manager, then relaunch. This error is
+usually harmless even when it appears (Chromium just runs without a disk cache), but let us know
+if the app fails to open a window entirely.
 
 ## Known Limitations / Areas for Improvement
 

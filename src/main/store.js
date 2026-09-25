@@ -9,14 +9,10 @@ const DATA_VERSION = 1;
 const LOCATION_FILE_NAME = 'location.json';
 
 // Dossier "point fixe" toujours prévisible, utilisé pour retrouver l'emplacement choisi par
-// l'utilisateur (s'il en a choisi un). En version portable Windows, electron-builder place
-// l'exécutable dans un dossier temporaire et fournit PORTABLE_EXECUTABLE_DIR : le dossier réel
-// où se trouve le .exe lancé par l'utilisateur. On y stocke alors les données à côté de l'exe,
-// comme on l'attend d'une version portable (autonome, déplaçable sur une clé USB).
+// l'utilisateur (s'il en a choisi un). En version portable, main.js redirige déjà
+// app.getPath('userData') vers un dossier à côté de l'exécutable avant que ce module ne soit
+// utilisé : ce chemin est donc correct dans tous les cas (installé ou portable).
 function getBootstrapDir() {
-  if (process.env.PORTABLE_EXECUTABLE_DIR) {
-    return path.join(process.env.PORTABLE_EXECUTABLE_DIR, 'EtudeTimerData');
-  }
   return app.getPath('userData');
 }
 
