@@ -26,6 +26,7 @@ function defaultData() {
     ues: [],
     courses: [],
     sessions: [],
+    blocus: [], // périodes de révision intensive (ex. "Blocus janvier 2027") : {id,name,startDate,endDate}
     settings: {
       pomodoro: { workMin: 25, shortBreakMin: 5, longBreakMin: 15, blocksBeforeLongBreak: 4 },
       flow: { breakPercent: 20 },
@@ -137,7 +138,7 @@ class Store {
     this.data.settings.pomodoro = Object.assign({}, def.settings.pomodoro, this.data.settings.pomodoro || {});
     this.data.settings.flow = Object.assign({}, def.settings.flow, this.data.settings.flow || {});
     this.data.settings.webdav = Object.assign({}, def.settings.webdav, this.data.settings.webdav || {});
-    for (const key of ['folders', 'ues', 'courses', 'sessions']) {
+    for (const key of ['folders', 'ues', 'courses', 'sessions', 'blocus']) {
       if (!Array.isArray(this.data[key])) this.data[key] = [];
     }
   }
@@ -303,6 +304,31 @@ class Store {
     s.end = new Date(new Date(anchor).getTime() + s.seconds * 1000).toISOString();
     this._touch();
     return s;
+  }
+
+  // ---------- Blocus (périodes de révision, ex. "Blocus janvier") ----------
+  addBlocus(name, startDate, endDate) {
+    const [s, e] = startDate <= endDate ? [startDate, endDate] : [endDate, startDate];
+    const b = { id: crypto.randomUUID(), name, startDate: s, endDate: e, createdAt: new Date().toISOString() };
+    this.data.blocus.push(b);
+    this._touch();
+    return b;
+  }
+
+  updateBlocus(id, { name, startDate, endDate } = {}) {
+    const b = this.data.blocus.find(b => b.id === id);
+    if (!b) return null;
+    if (name) b.name = name;
+    const s = startDate || b.startDate;
+    const e = endDate || b.endDate;
+    [b.startDate, b.endDate] = s <= e ? [s, e] : [e, s];
+    this._touch();
+    return b;
+  }
+
+  deleteBlocus(id) {
+    this.data.blocus = this.data.blocus.filter(b => b.id !== id);
+    this._touch();
   }
 
   // ---------- Réglages ----------

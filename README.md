@@ -29,6 +29,7 @@ Desktop app for Windows/Linux that allows study time tracking, with 2 tracking m
   startup, at regular intervals, on shutdown, and on demand. The password is encrypted
   on disk when the system allows it (always on Windows; on Linux if a keyring
   — GNOME Keyring, KWallet, etc. — is available).
+- **Exam-Cram Periods ("Blocus")**: define one or more date ranges (e.g. "January exam session") to see, per course, how much time was spent studying during each period versus the whole year. A course can have several separate blocus periods, each tracked independently. Managed from the Statistics view (add/edit/delete), next to the monthly breakdown.
 
 ## Prerequisites
 

@@ -27,6 +27,10 @@ function registerIpcHandlers({ getStore, getSync, getWindow }) {
   h('session:updateNote', (id, note) => getStore().updateSessionNote(id, note));
   h('session:updateTime', (id, patch) => getStore().updateSessionTime(id, patch));
 
+  h('blocus:add', (name, startDate, endDate) => getStore().addBlocus(name, startDate, endDate));
+  h('blocus:update', (id, patch) => getStore().updateBlocus(id, patch));
+  h('blocus:delete', (id) => getStore().deleteBlocus(id));
+
   h('settings:update', (partial) => getStore().updateSettings(partial));
   h('settings:setWebdavPassword', (plain) => { getStore().setWebdavPassword(plain); return true; });
 

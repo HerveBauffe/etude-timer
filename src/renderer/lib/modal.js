@@ -97,6 +97,52 @@ export function promptDuration({ title, message = '', initialMinutes = 25, initi
 }
 
 /**
+ * Modale de création/modification d'un blocus : un nom et deux dates (début, fin).
+ */
+export function promptBlocus({ title, message = '', initialName = '', initialStart = null, initialEnd = null, confirmLabel = 'Enregistrer' }) {
+  return new Promise((resolve) => {
+    const today = new Date().toISOString().slice(0, 10);
+    const startVal = initialStart || today;
+    const endVal = initialEnd || today;
+    modal.innerHTML = `
+      <h3>${title}</h3>
+      ${message ? `<p>${message}</p>` : ''}
+      <input type="text" id="modalBlocusName" value="${initialName.replace(/"/g, '&quot;')}" placeholder="Ex. Blocus janvier 2027" />
+      <div style="display:flex;gap:10px;margin-bottom:16px;">
+        <div style="flex:1;">
+          <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;">Début</label>
+          <input type="date" id="modalBlocusStart" value="${startVal}"
+            style="width:100%;padding:9px 10px;border-radius:7px;border:1px solid var(--border);background:var(--surface-2);" />
+        </div>
+        <div style="flex:1;">
+          <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;">Fin</label>
+          <input type="date" id="modalBlocusEnd" value="${endVal}"
+            style="width:100%;padding:9px 10px;border-radius:7px;border:1px solid var(--border);background:var(--surface-2);" />
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn" id="modalCancel">Annuler</button>
+        <button class="btn btn-primary" id="modalOk">${confirmLabel}</button>
+      </div>
+    `;
+    overlay.hidden = false;
+    const nameInput = modal.querySelector('#modalBlocusName');
+    nameInput.focus();
+    nameInput.select();
+
+    const finish = (value) => { close(); resolve(value); };
+    modal.querySelector('#modalCancel').addEventListener('click', () => finish(null));
+    modal.querySelector('#modalOk').addEventListener('click', () => {
+      const name = nameInput.value.trim();
+      const startDate = modal.querySelector('#modalBlocusStart').value;
+      const endDate = modal.querySelector('#modalBlocusEnd').value;
+      if (!name || !startDate || !endDate) { finish(null); return; }
+      finish({ name, startDate, endDate });
+    });
+  });
+}
+
+/**
  * Modale de note libre avec zone de texte multi-lignes (utilisée à la fin d'une séance).
  */
 export function promptNote({ title, message = '', initialValue = '', confirmLabel = 'Enregistrer', skipLabel = 'Passer' }) {

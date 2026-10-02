@@ -26,6 +26,10 @@ contextBridge.exposeInMainWorld('api', {
   updateSessionNote: invoke('session:updateNote'),
   updateSessionTime: invoke('session:updateTime'),
 
+  addBlocus: invoke('blocus:add'),
+  updateBlocus: invoke('blocus:update'),
+  deleteBlocus: invoke('blocus:delete'),
+
   updateSettings: invoke('settings:update'),
   setWebdavPassword: invoke('settings:setWebdavPassword'),
 

@@ -1,6 +1,7 @@
 import { actions, getState } from '../lib/state.js';
 import { formatMinutesLabel, dateKey, todayKey, monthLabel, isoWeekLabel, startOfWeek, escapeHtml } from '../lib/format.js';
 import { renderHeatmap, renderLineChart } from '../lib/svgcharts.js';
+import { promptBlocus, confirmDialog } from '../lib/modal.js';
 
 let rangeDays = 90;
 const now = new Date();
@@ -113,6 +114,41 @@ function monthTotalSeconds(sessions, year, month) {
 }
 
 function fmtShortDate(d) { return `${d.getDate()}/${d.getMonth() + 1}`; }
+function fmtShortDateStr(str) { return fmtShortDate(new Date(str + 'T00:00:00')); }
+
+function buildBlocusRows(sessions) {
+  const blocusList = getState().data.blocus.slice().sort((a, b) => a.startDate.localeCompare(b.startDate));
+  const totalAll = sessions.reduce((acc, s) => acc + s.seconds, 0);
+
+  const totalRow = `
+    <tr style="font-weight:600;">
+      <td colspan="2">Total (toute la période)</td>
+      <td class="dur">${formatMinutesLabel(totalAll)}</td>
+      <td></td>
+    </tr>
+  `;
+
+  if (!blocusList.length) {
+    return totalRow + `<tr><td colspan="4" class="empty-hint">Aucun blocus défini pour l'instant.</td></tr>`;
+  }
+
+  const rows = blocusList.map(b => {
+    const seconds = sumSecondsInRange(sessions, b.startDate, b.endDate);
+    return `
+      <tr>
+        <td>${escapeHtml(b.name)}</td>
+        <td>${fmtShortDateStr(b.startDate)} – ${fmtShortDateStr(b.endDate)}</td>
+        <td class="dur">${formatMinutesLabel(seconds)}</td>
+        <td style="text-align:right;white-space:nowrap;">
+          <button class="icon-btn" data-edit-blocus="${b.id}" title="Modifier">✎</button>
+          <button class="icon-btn" data-del-blocus="${b.id}" title="Supprimer">✕</button>
+        </td>
+      </tr>
+    `;
+  }).join('');
+
+  return totalRow + rows;
+}
 
 export function renderStatsView() {
   const container = document.getElementById('view-stats');
@@ -167,6 +203,17 @@ export function renderStatsView() {
         <tbody id="weekTableBody"></tbody>
       </table>
     </div>
+
+    <div class="section-title" style="display:flex;align-items:center;justify-content:space-between;">
+      <span>Temps par blocus</span>
+      <button class="btn btn-sm" id="btnAddBlocus">+ Nouveau blocus</button>
+    </div>
+    <div class="card">
+      <table class="week-table">
+        <thead><tr><th>Blocus</th><th>Période</th><th class="dur">Temps</th><th></th></tr></thead>
+        <tbody id="blocusTableBody"></tbody>
+      </table>
+    </div>
   `;
 
   document.getElementById('statsFilterCourse').value = getState().statsFilterCourseId;
@@ -212,4 +259,34 @@ export function renderStatsView() {
       </tr>
     `).join('');
   }
+
+  // Temps par blocus (reprend le même filtre "sessions" que le reste de la page)
+  document.getElementById('blocusTableBody').innerHTML = buildBlocusRows(sessions);
+
+  document.getElementById('btnAddBlocus').addEventListener('click', async () => {
+    const result = await promptBlocus({ title: 'Nouveau blocus', message: 'Ex. la période de révision avant une session d\'examens.' });
+    if (result) await actions.addBlocus(result.name, result.startDate, result.endDate);
+  });
+
+  container.querySelectorAll('[data-edit-blocus]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const b = getState().data.blocus.find(x => x.id === btn.dataset.editBlocus);
+      if (!b) return;
+      const result = await promptBlocus({
+        title: 'Modifier le blocus', initialName: b.name, initialStart: b.startDate, initialEnd: b.endDate, confirmLabel: 'Mettre à jour'
+      });
+      if (result) await actions.updateBlocus(b.id, result);
+    });
+  });
+
+  container.querySelectorAll('[data-del-blocus]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const ok = await confirmDialog({
+        title: 'Supprimer ce blocus ?',
+        message: "Seule la période est supprimée, ton temps d'étude déjà enregistré reste intact.",
+        confirmLabel: 'Supprimer', danger: true
+      });
+      if (ok) await actions.deleteBlocus(btn.dataset.delBlocus);
+    });
+  });
 }

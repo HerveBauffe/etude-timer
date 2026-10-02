@@ -62,6 +62,10 @@ export const actions = {
   async updateSessionNote(id, note) { return window.api.updateSessionNote(id, note).then(refreshFrom); },
   async updateSessionTime(id, patch) { return window.api.updateSessionTime(id, patch).then(refreshFrom); },
 
+  async addBlocus(name, startDate, endDate) { return window.api.addBlocus(name, startDate, endDate).then(refreshFrom); },
+  async updateBlocus(id, patch) { return window.api.updateBlocus(id, patch).then(refreshFrom); },
+  async deleteBlocus(id) { return window.api.deleteBlocus(id).then(refreshFrom); },
+
   async updateSettings(partial) { return window.api.updateSettings(partial).then(refreshFrom); },
   async setWebdavPassword(plain) { return window.api.setWebdavPassword(plain); },
 
