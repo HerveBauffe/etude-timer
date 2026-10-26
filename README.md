@@ -1,158 +1,133 @@
 Application Vibe-coded.
 
-# Étude Timer
-Desktop app for Windows/Linux that allows study time tracking, with 2 tracking methods (Pomodoro, FlowZone), statistics (Heatmap, graphs, weekly/monthly summary) and data sync using WebDAV (Nextcloud or other)
+# Étude Timer (Flutter edition, v2.0)
+
+Desktop app for Windows/Linux that tracks study time per course, with two timer methods
+(Pomodoro, Flow Zone), statistics (heatmap, graphs, weekly/monthly summary, exam-cram periods) and
+data sync over WebDAV (Nextcloud or any other server).
 
 ## Features
 
-- **Organization**: folders (e.g., year, semester) → course unit → class, with the ability to rename,
-  delete, and archive completed course units (time history is retained).
-- **Pomodoro Timer**: 25-minute work block (adjustable). Once the 25 minutes are up, notifications alerts but **the timer continues to run** to
-  track your total time.
-  After 4 blocks, a 15-minute long break. Break time is never recorded in the
-  statistics. A **End Study Session** button ends everything at any
-  time and saves the current work time and allows you to take note of your progress.
-- **Flow Zone Timer**: a free-form timer; when paused, the app calculates a well-deserved break
-  (an adjustable percentage of the time worked) that you can start immediately.
-- **Study Notes**: At the end of your study session (using the “End Study Session” button),
-  you can add an optional note (e.g., “page 42, exercise 3”…). The most recent note
-  for a course is highlighted as soon as you select it, so you can pick up where you left off more quickly. A
-  “+ Note” button also lets you add one at any time, without starting a timer.
-- **Manual Time**: A “⏱ Time” button lets you add study time retroactively (duration +
-  date), which is useful if you forgot to start or stop the timer. Each entry in
-  the recent history can also be edited later using the ✎ icon (duration and date).
-- **Statistics**: a heatmap showing contribution patterns, a graph of the number of
-  minutes studied per day (30/90/365 days), the total for the current month, and a week-by-week
-  breakdown, with a filter by course.
-- **WebDAV Synchronization**: Data (structure + history + notes) is stored in
-  a single JSON file, synchronized to your WebDAV server (typically Nextcloud) at
-  startup, at regular intervals, on shutdown, and on demand. The password is encrypted
-  on disk when the system allows it (always on Windows; on Linux if a keyring
-  — GNOME Keyring, KWallet, etc. — is available).
-- **Exam-Cram Periods ("Blocus")**: define one or more date ranges (e.g. "January exam session") to see, per course, how much time was spent studying during each period versus the whole year. A course can have several separate blocus periods, each tracked independently. Managed from the Statistics view (add/edit/delete), next to the monthly breakdown.
+- **Organization**: folders (year, semester…) → course unit (UE) → course. Create / rename / delete at
+  every level, move a UE to another folder, archive finished UEs (history is kept; "Archives" section).
+- **Pomodoro**: adjustable work block (default 25 min), short/long breaks (long break after N blocks).
+  Each phase is started manually. When the target is reached you get a sound + desktop notification +
+  the window comes to the front, **but the timer keeps running** (overtime) so your real study time is
+  recorded. **Pause/Resume** (not counted as a break) and **Skip** (jump straight to the next phase).
+  Breaks are never recorded. **End study session** saves the running block silently and *then* offers
+  an optional note — the only moment a note is requested.
+- **Flow Zone**: free stopwatch. On stop you get a review screen (optional note) and an earned break
+  (adjustable % of the time worked) that you can start or skip.
+- **Notes**: a "Resume" banner shows the latest note of the selected course; a "Note" button adds one
+  anytime without a timer.
+- **Manual time**: "Temps" button to add duration + date after the fact; ✎ on any history entry to fix
+  its duration/date.
+- **Statistics**: today/week/month cards, yearly heatmap, minutes-per-day line chart (30/90/365 days),
+  monthly total with ISO-week breakdown, per-course filter. Only work time counts.
+- **Blocus (exam-cram periods)**: named date ranges; for the filtered course, one independent total per
+  blocus next to the total over the whole period. Several blocus can coexist; deleting one never deletes
+  study time.
+- **WebDAV sync**: at startup, at a regular interval, on close (5 s max) and on demand. See below.
+- **Data location**: default per-OS folder, **portable mode**, or any folder you choose.
+- **Single instance**: launching the app twice brings the existing window to the front.
 
-## Prerequisites
+## Requirements
 
-- [Node.js](https://nodejs.org/) 18 or newer (LTS recommended), with npm.
-- On Linux, to compile a `.deb`/`AppImage` package: standard build tools
-  (`build-essential` on Debian/Ubuntu) are generally not required, but install them
-  if `npm install` fails for a native module.
+- [Flutter](https://docs.flutter.dev/get-started/install) **3.32 or newer** (stable), with desktop support.
+- Linux build dependencies: `sudo apt install clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev`
+- Windows: Visual Studio 2022 with the "Desktop development with C++" workload.
 
-## Installation and Launch in Development
+## First run
+
+The platform folders (`windows/`, `linux/`) are generated, not versioned:
 
 ```bash
-npm install
-npm start
+./scripts/bootstrap.sh          # Linux/macOS shell   (Windows: scripts\bootstrap.ps1)
+flutter run -d linux            # or: flutter run -d windows
 ```
 
-This launches the application directly with Electron, without creating an installer. This is the
-fastest way to try it out or make changes to it.
+`bootstrap` runs `flutter create --platforms=windows,linux --project-name etude_timer .`, removes the
+sample widget test and runs `flutter pub get`.
 
-## Creating Installation Packages
+## Build
 
 ```bash
-# Windows (.exe installer + portable version)
-npm run dist:win
-
-# Linux (.AppImage + .deb)
-npm run dist:linux
-
-# Both at once (requires the ability to compile for both platforms,
-# which generally works best by running each command on its own OS)
-npm run dist
+./scripts/build_linux.sh                                              # Linux  → dist/*.tar.gz
+powershell -ExecutionPolicy Bypass -File scripts\build_windows.ps1    # Windows → dist\*.zip (portable)
 ```
 
-The generated files are located in `release/`. **Tip**: `electron-builder` compiles more
-easily for Windows when running on Windows and for Linux when running on Linux
+Both scripts print the real size of the build folder and of the archive. An optional Windows installer
+script for [Inno Setup](https://jrsoftware.org/isinfo.php) is in `installer/etude_timer.iss`.
 
-A default Electron icon will be used until you add your own to
-`build/icon.ico` (Windows) and `build/icon.png` (Linux, 512×512 recommended)—electron-builder
-automatically detects them at these locations.
+**About size.** Flutter always ships its engine (a native library plus the ICU data file), so the
+unpacked folder will not be as tiny as a native app. The app code itself is small: only two plugins
+(`window_manager`, `file_selector`), no `flutter_localizations` (French strings are a hand-written
+delegate), no charting library (chart and heatmap are drawn with `CustomPaint`). Measure the result
+with the build scripts; the zipped/compressed size is what matters for distribution.
 
-## Configure Nextcloud Synchronization (WebDAV)
-1. In Nextcloud: **Settings → Security → Create a new app password**,
-   give it a name (e.g., “Etude Timer”) and copy the generated password—do not use your
-   main password.
-2. Your WebDAV URL is usually:
-   `https://YOUR-NEXTCLOUD.exemple.com/remote.php/dav/files/YOUR_USERNAME/`
-3. In the app, go to the **Settings → WebDAV Sync** tab:
-   - Enable synchronization.
-   - Enter the URL, your Nextcloud username, and the app password created in
-     step 1.
-   - The “Remote Path” field (`/EtudeTimer/data.json` by default) is the file that will be created
-     on your Nextcloud to store all your data—the folder is created automatically.
-   - Click **Save**, then **Sync Now** to verify that everything
-     is working.
-4. Repeat this setup (same URL, same username, same app password) on
-   your second computer.
+## Data
 
-### How Synchronization works
+| What | Windows | Linux |
+|---|---|---|
+| Default folder | `%APPDATA%\etude-timer` | `~/.config/etude-timer` (or `$XDG_CONFIG_HOME`) |
+| Portable | `EtudeTimerData\` next to the `.exe` | `EtudeTimerData/` next to the executable |
 
-With each synchronization, the local and remote folders/UE/courses/sessions
-are **merged by identifier**—a record added on one side
-is never lost. If the same item is modified on both sides between two syncs, the version of the dataset that was most recently modified
-is retained. A sync occurs automatically on startup, every
-*N* minutes (configurable), and when the app closes (with a 5-second limit so as not to
-block the shutdown).
+- `data.json` — your data (same location and format family as the Electron version; it is simply picked up).
+- `location.json` — pointer to a custom data folder (Settings → Data location).
+- `device.json` — settings specific to this computer (WebDAV credentials, last sync). **Never uploaded.**
 
-## Where is the data stored?
+Portable mode: create a folder named `EtudeTimerData` next to the executable (the Windows build script
+already does it for the portable zip). Remove it to switch back to the default location.
 
-In a `data.json` file, at a location that depends on the build:
+### Migrating from the Electron version
 
-- **Windows (installed version)**: `%APPDATA%\etude-timer\data.json`
-- **Windows (portable version)**: in an `EtudeTimerData` folder created right next to the
-  `.exe` you launch — the portable build never touches your Windows user profile, so it stays
-  fully self-contained (e.g. on a USB drive).
-- **Linux**: `~/.config/etude-timer/data.json`
+Run the new app: it reads the existing `data.json`. WebDAV URL/user/path are imported once into
+`device.json`. If the old password was encrypted by Electron it cannot be read here — re-enter it in
+Settings.
 
-This is the same file that is sent to your WebDAV server if sync is enabled.
+## WebDAV sync
 
-### Changing this location
+Settings → WebDAV. For Nextcloud the URL looks like
+`https://cloud.example.com/remote.php/dav/files/<user>`; the file defaults to `/EtudeTimer/data.json`
+(folders are created if missing). Use a Nextcloud **app password** (Settings → Security).
 
-In **Settings → Data Location**, the **Choose another folder…** button lets you move storage
-anywhere (USB drive, a synced folder like OneDrive/Dropbox, another disk...). Your existing data
-is copied to the new folder — the old file is not deleted, as a safety net. The choice is
-remembered in a small `location.json` pointer file at the usual default location above, and is
-re-read on every startup. **Reset to default folder** undoes this at any time.
+- Merge is per item: the most recent modification wins, nothing is lost when two machines edit
+  different things. **Deletions propagate** (tombstones, kept one year). An item edited after it was
+  deleted elsewhere is kept.
+- The upload uses `If-Match`/`If-None-Match` (ETag): if the remote file changed meanwhile, the app
+  re-reads and re-merges instead of overwriting. An unreadable remote file is never overwritten.
+- Nothing is uploaded when there is nothing new.
+- TLS certificate validation is never disabled: a server with a self-signed certificate must be
+  trusted by the OS.
+- The password is stored **in clear text** in `device.json` (permissions 600 on Linux). Use an app
+  password.
 
-## Troubleshooting
+## Alerts
 
-**Windows: `Unable to move the cache: Access denied (0x5)` / `Gpu Cache Creation failed`**
-This happens when two copies of the app try to run at the same time (e.g. the app was
-double-clicked twice, or a previous instance hadn't fully closed yet) and both fight over the
-same cache files. Since v1.0.2 the app refuses to open a second window in that case — it just
-brings the already-running one to the front instead — which should prevent this. If it still
-happens: make sure no `Étude Timer` process is left in Task Manager, then relaunch. This error is
-usually harmless even when it appears (Chromium just runs without a disk cache), but let us know
-if the app fails to open a window entirely.
+- Sound: Linux plays the freedesktop "complete" sound if `canberra-gtk-play` or `paplay` exists,
+  otherwise the system beep; Windows uses the system beep.
+- Desktop notification: Linux via `notify-send` (if installed). **No Windows toast**: on Windows the
+  window is brought to the front and a message is shown in the app.
 
-## Known Limitations / Areas for Improvement
+## Tests
 
-- Icon in the system notification area (tray) to keep the timer visible when the window
-  is minimized.
-- Reorganize folders/UEs via drag-and-drop.
-- A true conflict resolution dialog in case you modify both machines at the same
-  time without syncing between them (currently handled by automatic merging; see
-  above).
-- CSV export of sessions for external analysis.
+The business logic (`lib/core/`) has no Flutter dependency and is covered by tests:
 
-## Security and Dependency Maintenance
-
-The project is set up to use recent versions of Electron and electron-builder (`npm audit`
-returns 0 vulnerabilities at the time of writing). During installation, `npm` may display
-`deprecated` warnings for deeply nested packages.
-Run `npm outdated` and `npm audit` from time to time to keep Electron up to date (security fixes are frequent).
-
-## Project Structure
-
-```
-src/
-  main/         Electron main process (window, JSON storage, WebDAV sync, notifications)
-  renderer/     interface (vanilla HTML/CSS/JS, no framework or bundler required)
-    views/      Timer, Statistics, Settings, sidebar
-    lib/        shared state, formatting, hand-drawn SVG graphics, modals
+```bash
+flutter test
 ```
 
-No front-end framework or bundler (webpack/vite) is used: the renderer loads
-native ES modules directly (`<script type="module">`), which keeps the project easy to read
-and modify without an intermediate build step.
+They cover the store (including reading a 1.x `data.json`), sync/merge (two simulated machines with an
+in-memory server), the WebDAV client (against a local fake server), Pomodoro/Flow state machines (fake
+clock), statistics, blocus and the single-instance lock.
+
+## Project layout
+
+```
+lib/core/       pure Dart: models, data_store, paths, device_config, webdav_client, sync,
+                pomodoro, flow, stats, formatting, single_instance
+lib/platform/   window management (window_manager), sound/notifications
+lib/ui/         Material 3 app: theme, controller, screens (timer, stats, settings), widgets
+test/           unit tests for lib/core
+scripts/        bootstrap + build scripts      installer/   Inno Setup script
+```

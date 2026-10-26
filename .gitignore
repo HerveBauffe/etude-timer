@@ -1,6 +1,16 @@
-node_modules/
-release/
-*.log
-.DS_Store
-Thumbs.db
-*.corrupt-*
+# Flutter / Dart
+.dart_tool/
+.packages
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+pubspec.lock
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Données locales de test
+EtudeTimerData/
+dist/

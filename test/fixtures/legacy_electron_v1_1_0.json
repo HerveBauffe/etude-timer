@@ -1,0 +1,208 @@
+{
+  "version": 1,
+  "updatedAt": "2026-10-24T10:11:33.518Z",
+  "lastSyncedAt": null,
+  "folders": [
+    {
+      "id": "e7a44c03-a4ad-4296-8ff9-ac240d228f40",
+      "name": "2026-2027",
+      "parentId": null,
+      "type": "year",
+      "createdAt": "2026-10-24T10:11:33.511Z"
+    },
+    {
+      "id": "27a1ffea-21fa-47b9-a6f7-a978e096b66b",
+      "name": "Quadrimestre 1",
+      "parentId": "e7a44c03-a4ad-4296-8ff9-ac240d228f40",
+      "type": "quadrimestre",
+      "createdAt": "2026-10-24T10:11:33.512Z"
+    }
+  ],
+  "ues": [
+    {
+      "id": "57230424-95f1-4195-8761-91e3baeb1f23",
+      "name": "Physique",
+      "folderId": "27a1ffea-21fa-47b9-a6f7-a978e096b66b",
+      "archived": false,
+      "archivedAt": null,
+      "createdAt": "2026-10-24T10:11:33.512Z"
+    },
+    {
+      "id": "e0aed3e6-8c83-4b13-98ee-45e313ae0ffe",
+      "name": "Chimie",
+      "folderId": "27a1ffea-21fa-47b9-a6f7-a978e096b66b",
+      "archived": false,
+      "archivedAt": null,
+      "createdAt": "2026-10-24T10:11:33.512Z"
+    },
+    {
+      "id": "998cdf1c-c5bd-4835-a131-5f49d98e3264",
+      "name": "Math (ancienne)",
+      "folderId": "e7a44c03-a4ad-4296-8ff9-ac240d228f40",
+      "archived": true,
+      "archivedAt": "2026-10-24T10:11:33.514Z",
+      "createdAt": "2026-10-24T10:11:33.512Z"
+    }
+  ],
+  "courses": [
+    {
+      "id": "98e50df9-7694-4684-9e65-bcfd64109173",
+      "name": "Mécanique",
+      "ueId": "57230424-95f1-4195-8761-91e3baeb1f23",
+      "createdAt": "2026-10-24T10:11:33.513Z"
+    },
+    {
+      "id": "a3e4d51d-ce01-44c9-833b-424ebc4d6310",
+      "name": "Optique",
+      "ueId": "57230424-95f1-4195-8761-91e3baeb1f23",
+      "createdAt": "2026-10-24T10:11:33.513Z"
+    },
+    {
+      "id": "50cc25dc-76d7-41d5-9217-d676af610ca0",
+      "name": "Orga",
+      "ueId": "e0aed3e6-8c83-4b13-98ee-45e313ae0ffe",
+      "createdAt": "2026-10-24T10:11:33.513Z"
+    },
+    {
+      "id": "1e17d416-e428-43d6-b7a3-f049b4fc4911",
+      "name": "Analyse",
+      "ueId": "998cdf1c-c5bd-4835-a131-5f49d98e3264",
+      "createdAt": "2026-10-24T10:11:33.513Z"
+    }
+  ],
+  "sessions": [
+    {
+      "id": "434780b7-77fa-40bb-86a5-03da3b84e8a6",
+      "courseId": "98e50df9-7694-4684-9e65-bcfd64109173",
+      "mode": "pomodoro",
+      "kind": "work",
+      "start": "2027-01-10T09:00:00.000Z",
+      "end": "2027-01-10T09:25:00.000Z",
+      "seconds": 1500,
+      "completed": true,
+      "date": "2027-01-10",
+      "note": "ch. 3"
+    },
+    {
+      "id": "dae1ab44-6846-4a4e-b428-5ae7c4c7f53e",
+      "courseId": "98e50df9-7694-4684-9e65-bcfd64109173",
+      "mode": "pomodoro",
+      "kind": "work",
+      "start": "2027-01-11T09:00:00.000Z",
+      "end": "2027-01-11T09:50:00.000Z",
+      "seconds": 3000,
+      "completed": true,
+      "date": "2027-01-11",
+      "note": ""
+    },
+    {
+      "id": "025f27fb-6b1b-4d79-94df-7cef98a9ad28",
+      "courseId": "98e50df9-7694-4684-9e65-bcfd64109173",
+      "mode": "flow",
+      "kind": "work",
+      "start": "2027-01-11T09:00:00.000Z",
+      "end": "2027-01-11T10:30:00.000Z",
+      "seconds": 5400,
+      "completed": true,
+      "date": "2027-01-11",
+      "note": "exo 12"
+    },
+    {
+      "id": "19854574-3d15-4968-90df-b88d8f0ef403",
+      "courseId": "98e50df9-7694-4684-9e65-bcfd64109173",
+      "mode": "flow",
+      "kind": "break",
+      "start": "2027-01-11T09:00:00.000Z",
+      "end": "2027-01-11T09:15:00.000Z",
+      "seconds": 900,
+      "completed": true,
+      "date": "2027-01-11",
+      "note": ""
+    },
+    {
+      "id": "db58d06d-9f3a-4b9d-9d14-b75e082f0b2b",
+      "courseId": "a3e4d51d-ce01-44c9-833b-424ebc4d6310",
+      "mode": "pomodoro",
+      "kind": "work",
+      "start": "2026-10-02T09:00:00.000Z",
+      "end": "2026-10-02T09:30:00.000Z",
+      "seconds": 1800,
+      "completed": true,
+      "date": "2026-10-02",
+      "note": ""
+    },
+    {
+      "id": "b7cfd2a7-56d3-41d5-903f-a56005825ec8",
+      "courseId": "50cc25dc-76d7-41d5-9217-d676af610ca0",
+      "mode": null,
+      "kind": "note",
+      "start": "2026-10-03T09:00:00.000Z",
+      "end": "2026-10-03T09:00:00.000Z",
+      "seconds": 0,
+      "completed": true,
+      "date": "2026-10-03",
+      "note": "repartir de la page 88"
+    },
+    {
+      "id": "45d4f160-665c-4bf5-8b3d-ec0892d046b3",
+      "courseId": "50cc25dc-76d7-41d5-9217-d676af610ca0",
+      "mode": null,
+      "kind": "work",
+      "start": "2026-10-03T09:00:00.000Z",
+      "end": "2026-10-03T09:45:00.000Z",
+      "seconds": 2700,
+      "completed": true,
+      "date": "2026-10-03",
+      "note": ""
+    },
+    {
+      "id": "81d24954-d365-4850-ac22-4795efbabbed",
+      "courseId": "1e17d416-e428-43d6-b7a3-f049b4fc4911",
+      "mode": "pomodoro",
+      "kind": "work",
+      "start": "2026-03-03T09:00:00.000Z",
+      "end": "2026-03-03T09:20:00.000Z",
+      "seconds": 1200,
+      "completed": true,
+      "date": "2026-03-03",
+      "note": ""
+    }
+  ],
+  "blocus": [
+    {
+      "id": "5e989f48-48cb-404b-812c-ba62a463013d",
+      "name": "Blocus janvier 2027",
+      "startDate": "2027-01-04",
+      "endDate": "2027-01-24",
+      "createdAt": "2026-10-24T10:11:33.517Z"
+    },
+    {
+      "id": "46b59312-33c4-4c6b-8a7c-98d2333757e8",
+      "name": "Blocus juin 2027",
+      "startDate": "2027-06-01",
+      "endDate": "2027-06-20",
+      "createdAt": "2026-10-24T10:11:33.518Z"
+    }
+  ],
+  "settings": {
+    "pomodoro": {
+      "workMin": 45,
+      "shortBreakMin": 10,
+      "longBreakMin": 25,
+      "blocksBeforeLongBreak": 3
+    },
+    "flow": {
+      "breakPercent": 30
+    },
+    "webdav": {
+      "enabled": true,
+      "url": "https://cloud.exemple.be/remote.php/dav/files/hervé",
+      "username": "hervé",
+      "remotePath": "/EtudeTimer/data.json",
+      "autoSyncMinutes": 7,
+      "password": "mdp-appli",
+      "passwordEncrypted": false
+    },
+    "theme": "system"
+  }
+}
