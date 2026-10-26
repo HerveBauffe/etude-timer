@@ -53,6 +53,9 @@ class DeviceConfig {
   WebdavConfig webdav = WebdavConfig();
   String? lastSyncedAt;
 
+  /// Filtre Q1 / Q2 / Q1+Q2 de la barre latérale (propre à cette machine) : 'q1' | 'q2' | 'both'.
+  String quadriFilter = 'q1';
+
   DeviceConfig(this.paths);
 
   bool get exists => File(paths.deviceFile).existsSync();
@@ -66,6 +69,7 @@ class DeviceConfig {
         final m = j.cast<String, Object?>();
         if (m['webdav'] is Map) webdav = WebdavConfig.fromJson((m['webdav'] as Map).cast<String, Object?>());
         lastSyncedAt = m['lastSyncedAt'] is String ? m['lastSyncedAt'] as String : null;
+        if (m['quadriFilter'] is String) quadriFilter = m['quadriFilter'] as String;
       }
     } catch (_) {
       // fichier illisible : on repart d'une config vide, sans rien casser
@@ -76,7 +80,7 @@ class DeviceConfig {
     Directory(paths.bootstrapDir).createSync(recursive: true);
     final tmp = File('${paths.deviceFile}.tmp');
     tmp.writeAsStringSync(
-      const JsonEncoder.withIndent('  ').convert({'webdav': webdav.toJson(), 'lastSyncedAt': lastSyncedAt}),
+      const JsonEncoder.withIndent('  ').convert({'webdav': webdav.toJson(), 'lastSyncedAt': lastSyncedAt, 'quadriFilter': quadriFilter}),
     );
     tmp.renameSync(paths.deviceFile);
     if (Platform.isLinux || Platform.isMacOS) {

@@ -89,7 +89,7 @@ class _CourseHeader extends StatelessWidget {
           child: Row(children: [
             Icon(Icons.arrow_back, color: scheme.onSurfaceVariant),
             const SizedBox(width: 12),
-            const Expanded(child: Text('Sélectionne un cours dans la liste de gauche pour commencer.')),
+            const Expanded(child: Text('Choisis un cours dans la liste de gauche (bouton ‹ › pour la replier ou la rouvrir) pour commencer.')),
           ]),
         ),
       );

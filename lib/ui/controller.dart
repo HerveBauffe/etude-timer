@@ -2,12 +2,14 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
+import '../core/catalog.dart';
 import '../core/data_store.dart';
 import '../core/device_config.dart';
 import '../core/flow.dart';
 import '../core/models.dart';
 import '../core/paths.dart';
 import '../core/pomodoro.dart';
+import '../core/quadri.dart';
 import '../core/single_instance.dart';
 import '../core/sync.dart';
 import '../core/webdav_client.dart';
@@ -16,7 +18,7 @@ import '../platform/window_service.dart';
 
 enum TimerMode { pomodoro, flow }
 
-enum AppView { timer, stats, settings }
+enum AppView { timer, courses, planning, stats, settings }
 
 /// Chef d'orchestre : relie données, minuteurs, synchronisation, alertes et fenêtre.
 /// L'interface n'écoute que ce contrôleur (ChangeNotifier) et le `tick` (≈ 2×/s).
@@ -47,6 +49,12 @@ class AppController extends ChangeNotifier {
   TimerMode mode = TimerMode.pomodoro;
   String? selectedCourseId;
   String? statsCourseId; // null = tous les cours
+
+  /// Filtre Q1 / Q2 / Q1+Q2 : restreint les cours affichés partout (liste, cours, planning, stats).
+  late QuadriFilter quadri = QuadriFilter.parse(device.quadriFilter);
+
+  /// Liste des cours du minuteur : développée par défaut, réductible.
+  bool sidebarOpen = true;
 
   // État de la synchronisation
   bool syncing = false;
@@ -118,8 +126,33 @@ class AppController extends ChangeNotifier {
   }
 
   void _onStoreChanged() {
-    if (selectedCourseId != null && store.courseById(selectedCourseId) == null) selectedCourseId = null;
-    if (statsCourseId != null && store.courseById(statsCourseId) == null) statsCourseId = null;
+    _dropHiddenSelections();
+    _notifySafe();
+  }
+
+  /// Cours de l'ensemble affiché par le filtre de quadrimestre.
+  Set<String> get visibleIds => visibleCourseIds(store.data, quadri);
+
+  bool isCourseVisible(String? id) => id != null && visibleIds.contains(id);
+
+  /// Désélectionne un cours supprimé ou masqué par le filtre (sauf pendant une session en cours).
+  void _dropHiddenSelections() {
+    final vis = visibleIds;
+    if (selectedCourseId != null && !busy && !vis.contains(selectedCourseId)) selectedCourseId = null;
+    if (statsCourseId != null && !vis.contains(statsCourseId)) statsCourseId = null;
+  }
+
+  void setQuadri(QuadriFilter f) {
+    if (f == quadri) return;
+    quadri = f;
+    device.quadriFilter = f.name;
+    device.save();
+    _dropHiddenSelections();
+    _notifySafe();
+  }
+
+  void toggleSidebar() {
+    sidebarOpen = !sidebarOpen;
     _notifySafe();
   }
 

@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../../core/formatting.dart';
 import '../../core/models.dart';
+import '../../core/quadri.dart';
 import '../../core/stats.dart';
+import '../../core/util.dart';
 import '../controller.dart';
 import '../theme.dart';
 import '../widgets/dialogs.dart';
@@ -19,6 +21,7 @@ class StatsScreen extends StatefulWidget {
 
 class _StatsScreenState extends State<StatsScreen> {
   int _rangeDays = 90;
+  String _perCoursePeriod = 'all'; // 'all' | 'month' | 'week'
   late int _year;
   late int _month;
 
@@ -49,7 +52,8 @@ class _StatsScreenState extends State<StatsScreen> {
     final d = c.store.data;
     final out = <({String? id, String label})>[(id: null, label: 'Tous les cours')];
     final items = [
-      for (final x in d.courses) (id: x.id, label: c.courseLabel(x.id)),
+      for (final x in d.courses)
+        if (c.quadri.matches(x.quadri)) (id: x.id, label: c.courseLabel(x.id)),
     ]..sort((a, b) => a.label.toLowerCase().compareTo(b.label.toLowerCase()));
     out.addAll(items);
     return out;
@@ -60,7 +64,8 @@ class _StatsScreenState extends State<StatsScreen> {
     final now = DateTime.now();
     final scheme = Theme.of(context).colorScheme;
     final text = Theme.of(context).textTheme;
-    final sessions = workSessions(c.store.data, courseId: c.statsCourseId);
+    final visible = c.visibleIds;
+    final sessions = workSessions(c.store.data, courseId: c.statsCourseId, courseIds: visible);
     final cards = summaryCards(sessions, now);
     final byDate = minutesByDate(sessions);
     final series = dailySeries(sessions, _rangeDays, now);
@@ -96,7 +101,7 @@ class _StatsScreenState extends State<StatsScreen> {
             children: [
               Text('Statistiques', style: text.headlineSmall),
               const SizedBox(height: 4),
-              Text('Ton temps de travail effectif (les pauses ne sont pas comptées).',
+              Text('Ton temps de travail effectif (les pauses ne sont pas comptées). Cours affichés : ${c.quadri.label}.',
                   style: text.bodyMedium?.copyWith(color: scheme.onSurfaceVariant)),
               const SizedBox(height: 16),
               DropdownMenu<String?>(
@@ -135,6 +140,21 @@ class _StatsScreenState extends State<StatsScreen> {
                   card('Ce mois-ci', cards.monthSeconds),
                 ]);
               }),
+              section(
+                'Temps par cours',
+                trailing: SegmentedButton<String>(
+                  showSelectedIcon: false,
+                  style: const ButtonStyle(visualDensity: VisualDensity.compact),
+                  segments: const [
+                    ButtonSegment(value: 'all', label: Text('Tout')),
+                    ButtonSegment(value: 'month', label: Text('Ce mois')),
+                    ButtonSegment(value: 'week', label: Text('Cette semaine')),
+                  ],
+                  selected: {_perCoursePeriod},
+                  onSelectionChanged: (v) => setState(() => _perCoursePeriod = v.first),
+                ),
+                child: _perCourse(context, visible, now),
+              ),
               section("Activité de l'année", child: Heatmap(minutesByDate: byDate, now: now)),
               section(
                 'Minutes étudiées par jour',
@@ -218,6 +238,71 @@ class _StatsScreenState extends State<StatsScreen> {
         ),
       ),
     );
+  }
+
+  /// Tableau « temps d'étude séparé par cours » : suit le filtre de quadrimestre, pas le filtre de cours.
+  Widget _perCourse(BuildContext context, Set<String> visible, DateTime now) {
+    final scheme = Theme.of(context).colorScheme;
+    final text = Theme.of(context).textTheme;
+    final from = switch (_perCoursePeriod) {
+      'month' => '${now.year.toString().padLeft(4, '0')}-${pad2(now.month)}-01',
+      'week' => dateKey(startOfWeek(now)),
+      _ => null,
+    };
+    final rows = courseTotals(c.store.data, visible, fromKey: from, toKey: from == null ? null : dateKey(now));
+    if (rows.isEmpty) {
+      return Text('Aucun cours en ${c.quadri.label}.', style: text.bodyMedium?.copyWith(color: scheme.onSurfaceVariant));
+    }
+    final maxSecs = rows.first.seconds;
+    final total = rows.fold<int>(0, (a, r) => a + r.seconds);
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      for (final r in rows)
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 5),
+          child: Row(children: [
+            Expanded(
+              flex: 5,
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(r.course.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+                Text(
+                  [
+                    c.store.ueById(r.course.ueId)?.name ?? '',
+                    if (c.quadri == QuadriFilter.both) 'Q${r.course.quadri}',
+                  ].where((e) => e.isNotEmpty).join(' · '),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: text.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+                ),
+              ]),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              flex: 4,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(6),
+                child: LinearProgressIndicator(
+                  value: maxSecs == 0 ? 0 : r.seconds / maxSecs,
+                  minHeight: 8,
+                  backgroundColor: scheme.surfaceContainerHighest,
+                ),
+              ),
+            ),
+            SizedBox(
+              width: 84,
+              child: Text(
+                formatMinutesLabel(r.seconds),
+                textAlign: TextAlign.right,
+                style: const TextStyle(fontFeatures: tabularFigures),
+              ),
+            ),
+          ]),
+        ),
+      const Divider(height: 20),
+      Row(children: [
+        const Expanded(child: Text('Total', style: TextStyle(fontWeight: FontWeight.w600))),
+        Text(formatMinutesLabel(total), style: const TextStyle(fontWeight: FontWeight.w600, fontFeatures: tabularFigures)),
+      ]),
+    ]);
   }
 
   Widget _cell(BuildContext context, String t, {bool bold = false, bool right = false, bool muted = false}) {

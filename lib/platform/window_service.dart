@@ -15,7 +15,7 @@ class WindowService with WindowListener {
     await windowManager.ensureInitialized();
     const options = WindowOptions(
       size: Size(1120, 760),
-      minimumSize: Size(760, 560),
+      minimumSize: Size(780, 580),
       center: true,
       title: 'Étude Timer',
     );

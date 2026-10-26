@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../core/formatting.dart';
+import '../../core/models.dart';
 import '../../core/util.dart';
 
 /// Boîtes de dialogue Material 3 communes à toute l'appli.
@@ -388,26 +389,29 @@ class _BlocusDialogState extends State<_BlocusDialog> {
   }
 }
 
-/// Choix d'un dossier de destination (pour déplacer une UE). `null` = annulé ; chaîne vide = racine.
+/// Choix d'une destination dans une liste (dossier pour une UE, UE pour un cours).
+/// `null` = annulé ; chaîne vide = racine (si `rootLabel` est fourni).
 Future<String?> pickFolder(
   BuildContext context, {
   required String title,
   required List<({String id, String label})> folders,
   String? current,
+  String? rootLabel = '(Racine)',
 }) {
   return showDialog<String>(
     context: context,
     builder: (ctx) => SimpleDialog(
       title: Text(title),
       children: [
-        SimpleDialogOption(
-          onPressed: () => Navigator.of(ctx).pop(''),
-          child: Row(children: [
-            Icon(current == null ? Icons.radio_button_checked : Icons.radio_button_unchecked, size: 18),
-            const SizedBox(width: 12),
-            const Text('(Racine)'),
-          ]),
-        ),
+        if (rootLabel != null)
+          SimpleDialogOption(
+            onPressed: () => Navigator.of(ctx).pop(''),
+            child: Row(children: [
+              Icon(current == null ? Icons.radio_button_checked : Icons.radio_button_unchecked, size: 18),
+              const SizedBox(width: 12),
+              Text(rootLabel),
+            ]),
+          ),
         for (final f in folders)
           SimpleDialogOption(
             onPressed: () => Navigator.of(ctx).pop(f.id),
@@ -420,6 +424,300 @@ Future<String?> pickFolder(
       ],
     ),
   );
+}
+
+class CourseResult {
+  final String name;
+  final int quadri;
+  const CourseResult(this.name, this.quadri);
+}
+
+/// Création / modification d'un cours : nom + quadrimestre (un cours ne porte que sur un quadrimestre).
+Future<CourseResult?> promptCourse(
+  BuildContext context, {
+  required String title,
+  String initialName = '',
+  int initialQuadri = 1,
+  String confirmLabel = 'Créer',
+}) {
+  return showDialog<CourseResult>(
+    context: context,
+    builder: (_) => _CourseDialog(title: title, initialName: initialName, initialQuadri: initialQuadri, confirmLabel: confirmLabel),
+  );
+}
+
+class _CourseDialog extends StatefulWidget {
+  final String title;
+  final String initialName;
+  final int initialQuadri;
+  final String confirmLabel;
+  const _CourseDialog({required this.title, required this.initialName, required this.initialQuadri, required this.confirmLabel});
+
+  @override
+  State<_CourseDialog> createState() => _CourseDialogState();
+}
+
+class _CourseDialogState extends State<_CourseDialog> {
+  late final TextEditingController _name = TextEditingController(text: widget.initialName);
+  late int _quadri = widget.initialQuadri == 2 ? 2 : 1;
+
+  @override
+  void dispose() {
+    _name.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final n = _name.text.trim();
+    if (n.isEmpty) return;
+    Navigator.of(context).pop(CourseResult(n, _quadri));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(widget.title),
+      content: SizedBox(
+        width: 420,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            TextField(
+              controller: _name,
+              autofocus: true,
+              decoration: const InputDecoration(labelText: 'Nom du cours'),
+              onSubmitted: (_) => _submit(),
+            ),
+            const SizedBox(height: 16),
+            Text('Quadrimestre', style: Theme.of(context).textTheme.labelLarge),
+            const SizedBox(height: 8),
+            SegmentedButton<int>(
+              showSelectedIcon: false,
+              segments: const [
+                ButtonSegment(value: 1, label: Text('Q1')),
+                ButtonSegment(value: 2, label: Text('Q2')),
+              ],
+              selected: {_quadri},
+              onSelectionChanged: (v) => setState(() => _quadri = v.first),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              "Un cours (et son examen) ne porte que sur un quadrimestre ; une UE peut en couvrir deux.",
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Annuler')),
+        FilledButton(onPressed: _submit, child: Text(widget.confirmLabel)),
+      ],
+    );
+  }
+}
+
+/// Résultat du dialogue de planning. `delete` = l'utilisateur a demandé la suppression.
+class PlanResult {
+  final bool delete;
+  final PlanKind kind;
+  final String title;
+  final String courseId;
+  final String date;
+  final String? time;
+  final int? estimatedMinutes;
+  final bool done;
+  const PlanResult({
+    this.delete = false,
+    required this.kind,
+    required this.title,
+    required this.courseId,
+    required this.date,
+    this.time,
+    this.estimatedMinutes,
+    this.done = false,
+  });
+}
+
+/// Ajout / modification d'une révision ou d'un examen.
+Future<PlanResult?> promptPlan(
+  BuildContext context, {
+  required List<({String id, String label})> courses,
+  PlanItem? existing,
+  PlanKind kind = PlanKind.revision,
+  required String date,
+  String? courseId,
+}) {
+  return showDialog<PlanResult>(
+    context: context,
+    builder: (_) => _PlanDialog(courses: courses, existing: existing, kind: existing?.kind ?? kind, date: existing?.date ?? date, courseId: existing?.courseId ?? courseId),
+  );
+}
+
+class _PlanDialog extends StatefulWidget {
+  final List<({String id, String label})> courses;
+  final PlanItem? existing;
+  final PlanKind kind;
+  final String date;
+  final String? courseId;
+  const _PlanDialog({required this.courses, required this.existing, required this.kind, required this.date, required this.courseId});
+
+  @override
+  State<_PlanDialog> createState() => _PlanDialogState();
+}
+
+class _PlanDialogState extends State<_PlanDialog> {
+  late PlanKind _kind = widget.kind;
+  late final TextEditingController _title = TextEditingController(text: widget.existing?.title ?? '');
+  late final TextEditingController _minutes =
+      TextEditingController(text: widget.existing?.estimatedMinutes?.toString() ?? '');
+  late String _date = widget.date;
+  late String? _time = widget.existing?.time ?? '09:00';
+  late String? _courseId = widget.courseId ?? (widget.courses.isEmpty ? null : widget.courses.first.id);
+  late bool _done = widget.existing?.done ?? false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _title.dispose();
+    _minutes.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickDate() async {
+    final d = await showDatePicker(
+      context: context,
+      initialDate: parseDateKey(_date) ?? DateTime.now(),
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2100),
+    );
+    if (d != null) setState(() => _date = dateKey(d));
+  }
+
+  Future<void> _pickTime() async {
+    final parts = (_time ?? '09:00').split(':');
+    final initial = TimeOfDay(hour: int.tryParse(parts[0]) ?? 9, minute: int.tryParse(parts.length > 1 ? parts[1] : '0') ?? 0);
+    final t = await showTimePicker(
+      context: context,
+      initialTime: initial,
+      builder: (ctx, child) => MediaQuery(data: MediaQuery.of(ctx).copyWith(alwaysUse24HourFormat: true), child: child!),
+    );
+    if (t != null) setState(() => _time = '${pad2(t.hour)}:${pad2(t.minute)}');
+  }
+
+  void _submit() {
+    if (_courseId == null) {
+      setState(() => _error = "Choisis un cours (crée-en d'abord un dans l'onglet Cours).");
+      return;
+    }
+    if (_title.text.trim().isEmpty) {
+      setState(() => _error = 'Donne un titre.');
+      return;
+    }
+    final m = int.tryParse(_minutes.text.trim());
+    Navigator.of(context).pop(PlanResult(
+      kind: _kind,
+      title: _title.text.trim(),
+      courseId: _courseId!,
+      date: _date,
+      time: _kind == PlanKind.exam ? (_time ?? '09:00') : null,
+      estimatedMinutes: _kind == PlanKind.revision && m != null && m > 0 ? m : null,
+      done: _kind == PlanKind.revision && _done,
+    ));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final editing = widget.existing != null;
+    final exam = _kind == PlanKind.exam;
+    return AlertDialog(
+      title: Text(editing ? 'Modifier' : 'Planifier'),
+      content: SizedBox(
+        width: 460,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SegmentedButton<PlanKind>(
+                showSelectedIcon: false,
+                segments: const [
+                  ButtonSegment(value: PlanKind.revision, label: Text('Révision'), icon: Icon(Icons.edit_note)),
+                  ButtonSegment(value: PlanKind.exam, label: Text('Examen'), icon: Icon(Icons.assignment_outlined)),
+                ],
+                selected: {_kind},
+                onSelectionChanged: (v) => setState(() => _kind = v.first),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _title,
+                autofocus: true,
+                decoration: InputDecoration(
+                  labelText: 'Titre',
+                  hintText: exam ? 'Ex. Examen écrit' : 'Ex. Chapitres 1 à 3',
+                ),
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                initialValue: _courseId,
+                isExpanded: true,
+                decoration: const InputDecoration(labelText: 'Cours'),
+                items: [
+                  for (final c in widget.courses) DropdownMenuItem(value: c.id, child: Text(c.label, overflow: TextOverflow.ellipsis)),
+                ],
+                onChanged: (v) => setState(() => _courseId = v),
+              ),
+              const SizedBox(height: 12),
+              Wrap(spacing: 8, runSpacing: 8, children: [
+                OutlinedButton.icon(
+                  onPressed: _pickDate,
+                  icon: const Icon(Icons.calendar_today_outlined, size: 18),
+                  label: Text('Date : ${formatDateFr(_date)}'),
+                ),
+                if (exam)
+                  OutlinedButton.icon(
+                    onPressed: _pickTime,
+                    icon: const Icon(Icons.schedule, size: 18),
+                    label: Text('Heure : ${_time ?? '09:00'}'),
+                  ),
+              ]),
+              if (!exam) ...[
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _minutes,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(4)],
+                  decoration: const InputDecoration(labelText: 'Durée estimée (facultatif)', suffixText: 'min'),
+                ),
+                if (editing)
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    controlAffinity: ListTileControlAffinity.leading,
+                    title: const Text('Fait'),
+                    value: _done,
+                    onChanged: (v) => setState(() => _done = v ?? false),
+                  ),
+              ],
+              if (_error != null) ...[
+                const SizedBox(height: 12),
+                Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+              ],
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        if (editing)
+          TextButton(
+            style: TextButton.styleFrom(foregroundColor: Theme.of(context).colorScheme.error),
+            onPressed: () => Navigator.of(context).pop(const PlanResult(delete: true, kind: PlanKind.revision, title: '', courseId: '', date: '')),
+            child: const Text('Supprimer'),
+          ),
+        TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Annuler')),
+        FilledButton(onPressed: _submit, child: Text(editing ? 'Enregistrer' : 'Ajouter')),
+      ],
+    );
+  }
 }
 
 /// Formate une durée pour l'historique (ex. « 25 min »).

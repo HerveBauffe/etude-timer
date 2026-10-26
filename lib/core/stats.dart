@@ -4,8 +4,13 @@ import 'util.dart';
 
 /// Calculs de statistiques (fonctions pures). Seul le temps `work` compte.
 
-List<Session> workSessions(AppData data, {String? courseId}) => data.sessions
-    .where((s) => s.kind == SessionKind.work && (courseId == null || s.courseId == courseId))
+/// Séances de travail, éventuellement limitées à un cours et/ou à un ensemble de cours
+/// (ex. ceux du quadrimestre affiché).
+List<Session> workSessions(AppData data, {String? courseId, Set<String>? courseIds}) => data.sessions
+    .where((s) =>
+        s.kind == SessionKind.work &&
+        (courseId == null || s.courseId == courseId) &&
+        (courseIds == null || courseIds.contains(s.courseId)))
     .toList();
 
 int sumSeconds(Iterable<Session> sessions, String fromKey, String toKey) {
@@ -126,4 +131,31 @@ List<List<DateTime>> heatmapGrid(DateTime now, {int weeks = 53}) {
     for (var w = 0; w < weeks; w++)
       [for (var d = 0; d < 7; d++) DateTime(start.year, start.month, start.day + w * 7 + d)],
   ];
+}
+
+class CourseTotal {
+  final Course course;
+  final int seconds;
+  const CourseTotal(this.course, this.seconds);
+}
+
+/// Temps d'étude séparé par cours (du plus long au plus court), sur une période facultative
+/// (bornes AAAA-MM-JJ incluses). Les cours sans temps sont inclus avec 0.
+List<CourseTotal> courseTotals(AppData data, Set<String> courseIds, {String? fromKey, String? toKey}) {
+  final secs = <String, int>{};
+  for (final s in data.sessions) {
+    if (s.kind != SessionKind.work || !courseIds.contains(s.courseId)) continue;
+    if (fromKey != null && s.date.compareTo(fromKey) < 0) continue;
+    if (toKey != null && s.date.compareTo(toKey) > 0) continue;
+    secs[s.courseId] = (secs[s.courseId] ?? 0) + s.seconds;
+  }
+  final out = [
+    for (final c in data.courses)
+      if (courseIds.contains(c.id)) CourseTotal(c, secs[c.id] ?? 0),
+  ];
+  out.sort((a, b) {
+    final c = b.seconds.compareTo(a.seconds);
+    return c != 0 ? c : a.course.name.toLowerCase().compareTo(b.course.name.toLowerCase());
+  });
+  return out;
 }

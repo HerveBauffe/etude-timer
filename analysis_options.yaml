@@ -7,9 +7,9 @@ analyzer:
     dead_code: warning
   exclude:
     - build/**
+    - android/**
     - windows/**
     - linux/**
-    - android/**
 
 linter:
   rules:

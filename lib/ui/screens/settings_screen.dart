@@ -8,7 +8,7 @@ import '../controller.dart';
 import '../theme.dart';
 import '../widgets/dialogs.dart';
 
-const String appVersion = '2.0.0';
+const String appVersion = '2.1.0';
 
 class SettingsScreen extends StatelessWidget {
   final AppController c;

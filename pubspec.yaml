@@ -1,10 +1,10 @@
 name: etude_timer
 description: Suivi du temps d'étude par cours — Pomodoro, Flow Zone, statistiques, blocus et synchronisation WebDAV.
 publish_to: none
-version: 2.0.0+1
+version: 2.1.0+1
 
 environment:
-  sdk: ">=3.8.0 <4.0.0"
+  sdk: ">=3.9.0 <4.0.0"
 
 # Volontairement minimal : deux plugins seulement (fenêtre + sélecteur de dossier).
 # Tout le reste (stockage JSON, WebDAV, minuteurs, stats, graphiques) est du Dart pur,

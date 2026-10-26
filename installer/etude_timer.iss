@@ -3,7 +3,7 @@
 ; Les données restent dans %APPDATA%\etude-timer : elles survivent à une mise à jour ou une désinstallation.
 
 #define AppName "Étude Timer"
-#define AppVersion "2.0.0"
+#define AppVersion "2.1.0"
 #define AppExe "etude_timer.exe"
 
 [Setup]

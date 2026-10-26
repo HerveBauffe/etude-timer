@@ -2,13 +2,16 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../core/quadri.dart';
 import 'controller.dart';
 import 'fr_localizations.dart';
+import 'screens/courses_screen.dart';
+import 'screens/planning_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/stats_screen.dart';
 import 'screens/timer_screen.dart';
 import 'theme.dart';
-import 'widgets/tree_panel.dart';
+import 'widgets/course_sidebar.dart';
 
 class EtudeTimerApp extends StatelessWidget {
   final AppController controller;
@@ -72,8 +75,6 @@ class _ShellState extends State<Shell> {
     super.dispose();
   }
 
-  static const _views = [AppView.timer, AppView.stats, AppView.settings];
-
   @override
   Widget build(BuildContext context) {
     return ScaffoldMessenger(
@@ -85,37 +86,7 @@ class _ShellState extends State<Shell> {
             body: SafeArea(
               child: Row(
                 children: [
-                  NavigationRail(
-                    selectedIndex: _views.indexOf(c.view),
-                    onDestinationSelected: (i) => c.setView(_views[i]),
-                    labelType: NavigationRailLabelType.all,
-                    destinations: const [
-                      NavigationRailDestination(
-                        icon: Icon(Icons.timer_outlined),
-                        selectedIcon: Icon(Icons.timer),
-                        label: Text('Minuteur'),
-                      ),
-                      NavigationRailDestination(
-                        icon: Icon(Icons.bar_chart_outlined),
-                        selectedIcon: Icon(Icons.bar_chart),
-                        label: Text('Stats'),
-                      ),
-                      NavigationRailDestination(
-                        icon: Icon(Icons.settings_outlined),
-                        selectedIcon: Icon(Icons.settings),
-                        label: Text('Réglages'),
-                      ),
-                    ],
-                    trailing: Expanded(
-                      child: Align(
-                        alignment: Alignment.bottomCenter,
-                        child: Padding(
-                          padding: const EdgeInsets.only(bottom: 16),
-                          child: _SyncButton(c: c),
-                        ),
-                      ),
-                    ),
-                  ),
+                  _SideNav(c: c),
                   Expanded(
                     child: Padding(
                       padding: const EdgeInsets.fromLTRB(0, 12, 12, 12),
@@ -123,7 +94,7 @@ class _ShellState extends State<Shell> {
                         AppView.timer => Row(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              TreePanel(controller: c),
+                              CourseSidebar(c: c),
                               const SizedBox(width: 12),
                               Expanded(
                                 child: DecoratedBox(
@@ -133,6 +104,8 @@ class _ShellState extends State<Shell> {
                               ),
                             ],
                           ),
+                        AppView.courses => CoursesScreen(c: c),
+                        AppView.planning => PlanningScreen(c: c),
                         AppView.stats => StatsScreen(c: c),
                         AppView.settings => SettingsScreen(c: c),
                       },
@@ -144,6 +117,148 @@ class _ShellState extends State<Shell> {
           );
         },
       ),
+    );
+  }
+}
+
+/// Barre latérale gauche : navigation, sélecteur de quadrimestre, bouton de synchronisation.
+/// Faite à la main (et non avec NavigationRail) pour rester utilisable sur une fenêtre peu haute :
+/// la navigation défile, le sélecteur et la synchro restent collés en bas.
+class _SideNav extends StatelessWidget {
+  final AppController c;
+  const _SideNav({required this.c});
+
+  static const _items = [
+    (AppView.timer, Icons.timer_outlined, Icons.timer, 'Minuteur'),
+    (AppView.courses, Icons.school_outlined, Icons.school, 'Cours'),
+    (AppView.planning, Icons.calendar_month_outlined, Icons.calendar_month, 'Planning'),
+    (AppView.stats, Icons.bar_chart_outlined, Icons.bar_chart, 'Stats'),
+    (AppView.settings, Icons.settings_outlined, Icons.settings, 'Réglages'),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 88,
+      child: Column(
+        children: [
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.only(top: 12, bottom: 8),
+              children: [
+                for (final (view, icon, selectedIcon, label) in _items)
+                  _NavItem(
+                    icon: c.view == view ? selectedIcon : icon,
+                    label: label,
+                    selected: c.view == view,
+                    onTap: () => c.setView(view),
+                  ),
+              ],
+            ),
+          ),
+          _QuadriToggle(c: c),
+          const SizedBox(height: 4),
+          _SyncButton(c: c),
+          const SizedBox(height: 12),
+        ],
+      ),
+    );
+  }
+}
+
+class _NavItem extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+  const _NavItem({required this.icon, required this.label, required this.selected, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 150),
+              width: 56,
+              height: 32,
+              decoration: BoxDecoration(
+                color: selected ? scheme.secondaryContainer : Colors.transparent,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Icon(icon, size: 22, color: selected ? scheme.onSecondaryContainer : scheme.onSurfaceVariant),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+                color: selected ? scheme.onSurface : scheme.onSurfaceVariant,
+              ),
+            ),
+          ]),
+        ),
+      ),
+    );
+  }
+}
+
+/// Q1 / Q2 / Q1+Q2 : n'affiche que les cours du quadrimestre choisi dans tous les écrans.
+class _QuadriToggle extends StatelessWidget {
+  final AppController c;
+  const _QuadriToggle({required this.c});
+
+  static const _tips = {
+    QuadriFilter.q1: 'Afficher les cours du 1er quadrimestre',
+    QuadriFilter.q2: 'Afficher les cours du 2e quadrimestre',
+    QuadriFilter.both: 'Afficher les cours des deux quadrimestres',
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      width: 68,
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(color: scheme.surfaceContainerHighest, borderRadius: BorderRadius.circular(18)),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        for (final f in QuadriFilter.values)
+          Tooltip(
+            message: _tips[f]!,
+            child: Semantics(
+              button: true,
+              selected: c.quadri == f,
+              child: Material(
+                color: c.quadri == f ? scheme.primary : Colors.transparent,
+                borderRadius: BorderRadius.circular(15),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(15),
+                  onTap: () => c.setQuadri(f),
+                  child: SizedBox(
+                    height: 30,
+                    child: Center(
+                      child: Text(
+                        f.label,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: c.quadri == f ? FontWeight.w700 : FontWeight.w500,
+                          color: c.quadri == f ? scheme.onPrimary : scheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ]),
     );
   }
 }

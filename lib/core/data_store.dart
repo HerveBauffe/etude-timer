@@ -217,6 +217,7 @@ class DataStore {
   void deleteUE(String id) {
     final courseIds = data.courses.where((c) => c.ueId == id).map((c) => c.id).toSet();
     data.sessions.removeWhere((s) => courseIds.contains(s.courseId));
+    data.plans.removeWhere((p) => courseIds.contains(p.courseId));
     data.courses.removeWhere((c) => c.ueId == id);
     data.ues.removeWhere((u) => u.id == id);
     _tomb(id);
@@ -228,9 +229,17 @@ class DataStore {
 
   // ───────────── Cours ─────────────
 
-  Course addCourse(String name, String ueId) {
+  /// `quadri` : 1 ou 2 — le cours (et son examen) ne porte que sur un quadrimestre.
+  Course addCourse(String name, String ueId, {int quadri = 1}) {
     final t = _stamp();
-    final c = Course(id: newId(), name: name.trim(), ueId: ueId, createdAt: t, updatedAt: t);
+    final c = Course(
+      id: newId(),
+      name: name.trim(),
+      ueId: ueId,
+      quadri: quadri == 2 ? 2 : 1,
+      createdAt: t,
+      updatedAt: t,
+    );
     data.courses.add(c);
     _touch();
     return c;
@@ -247,8 +256,34 @@ class DataStore {
     }
   }
 
+  /// Modifie le nom et/ou le quadrimestre d'un cours.
+  void updateCourse(String id, {String? name, int? quadri}) {
+    for (final c in data.courses) {
+      if (c.id != id) continue;
+      if (name != null && name.trim().isNotEmpty) c.name = name.trim();
+      if (quadri != null) c.quadri = quadri == 2 ? 2 : 1;
+      c.updatedAt = _stamp();
+      _touch();
+      return;
+    }
+  }
+
+  /// Change de UE (ex. réorganisation) ; le quadrimestre du cours est conservé.
+  void moveCourse(String id, String ueId) {
+    if (ueById(ueId) == null) return;
+    for (final c in data.courses) {
+      if (c.id == id) {
+        c.ueId = ueId;
+        c.updatedAt = _stamp();
+        _touch();
+        return;
+      }
+    }
+  }
+
   void deleteCourse(String id) {
     data.sessions.removeWhere((s) => s.courseId == id);
+    data.plans.removeWhere((p) => p.courseId == id);
     data.courses.removeWhere((c) => c.id == id);
     _tomb(id);
     _touch();
@@ -381,6 +416,77 @@ class DataStore {
   /// Supprime la période ; les séances enregistrées ne sont jamais touchées.
   void deleteBlocus(String id) {
     data.blocus.removeWhere((b) => b.id == id);
+    _tomb(id);
+    _touch();
+  }
+
+  // ───────────── Planning ─────────────
+
+  /// Ajoute une révision ou un examen. `date` = AAAA-MM-JJ ; `time` = HH:mm (examens).
+  PlanItem addPlan({
+    required PlanKind kind,
+    required String title,
+    required String courseId,
+    required String date,
+    String? time,
+    int? estimatedMinutes,
+  }) {
+    final t = _stamp();
+    final p = PlanItem(
+      id: newId(),
+      kind: kind,
+      title: title.trim().isEmpty ? (kind == PlanKind.exam ? 'Examen' : 'Révision') : title.trim(),
+      courseId: courseId,
+      date: date,
+      time: kind == PlanKind.exam ? time : null,
+      estimatedMinutes: kind == PlanKind.revision && (estimatedMinutes ?? 0) > 0 ? estimatedMinutes : null,
+      createdAt: t,
+      updatedAt: t,
+    );
+    data.plans.add(p);
+    _touch();
+    return p;
+  }
+
+  /// Remplace le contenu d'un élément du planning (les champs inutiles pour son type sont effacés).
+  void updatePlan(
+    String id, {
+    required PlanKind kind,
+    required String title,
+    required String courseId,
+    required String date,
+    String? time,
+    int? estimatedMinutes,
+    bool done = false,
+  }) {
+    for (final p in data.plans) {
+      if (p.id != id) continue;
+      p.kind = kind;
+      p.title = title.trim().isEmpty ? (kind == PlanKind.exam ? 'Examen' : 'Révision') : title.trim();
+      p.courseId = courseId;
+      p.date = date;
+      p.time = kind == PlanKind.exam ? time : null;
+      p.estimatedMinutes = kind == PlanKind.revision && (estimatedMinutes ?? 0) > 0 ? estimatedMinutes : null;
+      p.done = kind == PlanKind.revision ? done : false;
+      p.updatedAt = _stamp();
+      _touch();
+      return;
+    }
+  }
+
+  void setPlanDone(String id, bool done) {
+    for (final p in data.plans) {
+      if (p.id == id && p.kind == PlanKind.revision) {
+        p.done = done;
+        p.updatedAt = _stamp();
+        _touch();
+        return;
+      }
+    }
+  }
+
+  void deletePlan(String id) {
+    data.plans.removeWhere((p) => p.id == id);
     _tomb(id);
     _touch();
   }

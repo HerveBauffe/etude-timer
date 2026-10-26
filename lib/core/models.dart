@@ -1,3 +1,4 @@
+import 'quadri.dart';
 import 'util.dart';
 
 /// Modèles de données. Le format JSON reste compatible avec `data.json` de la version
@@ -105,12 +106,16 @@ class Course extends Entity {
   final String id;
   String name;
   String ueId;
+
+  /// Quadrimestre du cours : 1 ou 2 (0 = inconnu, résolu à la lecture d'un ancien fichier).
+  int quadri;
   String createdAt;
 
   Course({
     required this.id,
     required this.name,
     required this.ueId,
+    this.quadri = 1,
     String? createdAt,
     String? updatedAt,
   })  : createdAt = createdAt ?? isoUtc(DateTime.now()),
@@ -120,6 +125,7 @@ class Course extends Entity {
         id: _str(j['id']),
         name: _str(j['name'], 'Sans nom'),
         ueId: _str(j['ueId']),
+        quadri: _int(j['quadri'], 0).clamp(0, 2),
         createdAt: _str(j['createdAt'], epochIso),
         updatedAt: _legacyStamp(j),
       );
@@ -129,6 +135,7 @@ class Course extends Entity {
         'id': id,
         'name': name,
         'ueId': ueId,
+        'quadri': quadri,
         'createdAt': createdAt,
         'updatedAt': updatedAt,
       };
@@ -252,6 +259,69 @@ class Blocus extends Entity {
       };
 }
 
+enum PlanKind { revision, exam }
+
+/// Élément du planning : une révision (titre, cours, durée estimée facultative)
+/// ou un examen (titre, cours, heure). Toujours lié à un cours ; le quadrimestre est celui du cours.
+class PlanItem extends Entity {
+  @override
+  final String id;
+  PlanKind kind;
+  String title;
+  String courseId;
+  String date; // AAAA-MM-JJ
+  String? time; // HH:mm — examens
+  int? estimatedMinutes; // révisions, facultatif
+  bool done;
+  String createdAt;
+
+  PlanItem({
+    required this.id,
+    required this.kind,
+    required this.title,
+    required this.courseId,
+    required this.date,
+    this.time,
+    this.estimatedMinutes,
+    this.done = false,
+    String? createdAt,
+    String? updatedAt,
+  })  : createdAt = createdAt ?? isoUtc(DateTime.now()),
+        super(updatedAt ?? createdAt ?? isoUtc(DateTime.now()));
+
+  bool get isExam => kind == PlanKind.exam;
+
+  factory PlanItem.fromJson(Map<String, Object?> j) {
+    final est = j['estimatedMinutes'];
+    return PlanItem(
+      id: _str(j['id']),
+      kind: _str(j['kind']) == 'exam' ? PlanKind.exam : PlanKind.revision,
+      title: _str(j['title'], 'Sans titre'),
+      courseId: _str(j['courseId']),
+      date: _str(j['date']),
+      time: _strN(j['time']),
+      estimatedMinutes: est is num && est > 0 ? est.round() : null,
+      done: _bool(j['done'], false),
+      createdAt: _str(j['createdAt'], epochIso),
+      updatedAt: _legacyStamp(j),
+    );
+  }
+
+  @override
+  Map<String, Object?> toJson() => {
+        'id': id,
+        'kind': isExam ? 'exam' : 'revision',
+        'title': title,
+        'courseId': courseId,
+        'date': date,
+        'time': time,
+        'estimatedMinutes': estimatedMinutes,
+        'done': done,
+        'createdAt': createdAt,
+        'updatedAt': updatedAt,
+      };
+}
+
 /// Réglages synchronisés (les identifiants WebDAV, eux, restent locaux : voir device_config).
 class Settings {
   int workMin;
@@ -310,7 +380,7 @@ class Settings {
 
 /// Le document complet, tel qu'écrit dans `data.json` et échangé par WebDAV.
 class AppData {
-  static const int currentVersion = 2;
+  static const int currentVersion = 3;
 
   int version;
   String updatedAt;
@@ -319,6 +389,7 @@ class AppData {
   final List<Course> courses;
   final List<Session> sessions;
   final List<Blocus> blocus;
+  final List<PlanItem> plans;
 
   /// id → date de suppression : permet de propager les suppressions entre machines.
   final Map<String, String> tombstones;
@@ -337,6 +408,7 @@ class AppData {
     List<Course>? courses,
     List<Session>? sessions,
     List<Blocus>? blocus,
+    List<PlanItem>? plans,
     Map<String, String>? tombstones,
     Settings? settings,
     String? settingsUpdatedAt,
@@ -346,6 +418,7 @@ class AppData {
         courses = courses ?? [],
         sessions = sessions ?? [],
         blocus = blocus ?? [],
+        plans = plans ?? [],
         tombstones = tombstones ?? {},
         settings = settings ?? Settings(),
         settingsUpdatedAt = settingsUpdatedAt ?? epochIso;
@@ -382,6 +455,7 @@ class AppData {
       courses: _list(j['courses'], Course.fromJson).where((e) => e.id.isNotEmpty).toList(),
       sessions: _list(j['sessions'], Session.fromJson).where((e) => e.id.isNotEmpty).toList(),
       blocus: _list(j['blocus'], Blocus.fromJson).where((e) => e.id.isNotEmpty).toList(),
+      plans: _list(j['plans'], PlanItem.fromJson).where((e) => e.id.isNotEmpty).toList(),
       tombstones: tomb,
       settings: Settings.fromJson(rawSettings, legacy: fileVersion < 2),
       settingsUpdatedAt: _strN(j['settingsUpdatedAt']) ?? _strN(j['updatedAt']) ?? epochIso,
@@ -389,7 +463,30 @@ class AppData {
     final wd = rawSettings['webdav'];
     if (wd is Map) data.legacyWebdav = wd.cast<String, Object?>();
     data.legacyLastSyncedAt = _strN(j['lastSyncedAt']);
+    data.resolveQuadris();
     return data;
+  }
+
+  /// Cours sans quadrimestre (anciennes données) : on le devine d'après les noms des dossiers
+  /// parents (« Quadrimestre 2 »…), sinon Q1. Déterministe et sans toucher `updatedAt`,
+  /// pour que deux machines qui migrent le même fichier obtiennent exactement le même résultat.
+  void resolveQuadris() {
+    if (!courses.any((c) => c.quadri == 0)) return;
+    final ueById = {for (final u in ues) u.id: u};
+    final folderById = {for (final f in folders) f.id: f};
+    for (final c in courses) {
+      if (c.quadri != 0) continue;
+      final names = <String>[];
+      var fid = ueById[c.ueId]?.folderId;
+      var guard = 0;
+      while (fid != null && guard++ < 50) {
+        final f = folderById[fid];
+        if (f == null) break;
+        names.add(f.name);
+        fid = f.parentId;
+      }
+      c.quadri = inferQuadriFromNames(names) ?? 1;
+    }
   }
 
   /// JSON "canonique" : tri stable par id pour que deux jeux identiques produisent
@@ -411,6 +508,7 @@ class AppData {
       'courses': sorted(courses),
       'sessions': sorted(sessions),
       'blocus': sorted(blocus),
+      'plans': sorted(plans),
       'tombstones': tomb,
       'settings': settings.toJson(),
       'settingsUpdatedAt': settingsUpdatedAt,
@@ -442,6 +540,9 @@ class AppData {
     final beforeS = sessions.length;
     sessions.removeWhere((s) => !courseIds.contains(s.courseId));
     if (sessions.length != beforeS) changed = true;
+    final beforeP = plans.length;
+    plans.removeWhere((p) => !courseIds.contains(p.courseId));
+    if (plans.length != beforeP) changed = true;
     return changed;
   }
 }

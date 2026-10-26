@@ -64,6 +64,7 @@ AppData mergeData(AppData a, AppData b, {DateTime? now}) {
     courses: mergeList(ca.courses, cb.courses),
     sessions: mergeList(ca.sessions, cb.sessions),
     blocus: mergeList(ca.blocus, cb.blocus),
+    plans: mergeList(ca.plans, cb.plans),
     tombstones: tomb,
     settings: pickA ? ca.settings : cb.settings,
     settingsUpdatedAt: pickA ? ca.settingsUpdatedAt : cb.settingsUpdatedAt,
