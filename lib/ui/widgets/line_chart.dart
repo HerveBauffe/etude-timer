@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/formatting.dart';
 import '../../core/stats.dart';
 import '../../core/util.dart';
+import '../layout.dart';
 
 /// Courbe « minutes étudiées par jour » dessinée à la main (aucune dépendance).
 class MinutesLineChart extends StatefulWidget {
@@ -39,31 +40,37 @@ class _MinutesLineChartState extends State<MinutesLineChart> {
           height: 20,
           child: Text(
             hover == null || hoverDate == null
-                ? 'Survole la courbe pour voir le détail'
+                ? (isMobilePlatform ? 'Touche la courbe pour voir le détail' : 'Survole la courbe pour voir le détail')
                 : '${hoverDate.day} ${monthsFrShort[hoverDate.month - 1]} ${hoverDate.year} — ${formatMinutesLabel(hover.minutes * 60)}',
             style: Theme.of(context).textTheme.labelMedium?.copyWith(color: scheme.onSurfaceVariant),
           ),
         ),
         LayoutBuilder(builder: (context, c) {
+          void pick(Offset pos) {
+            final innerW = c.maxWidth - pad.left - pad.right;
+            if (innerW <= 0) return;
+            final f = ((pos.dx - pad.left) / innerW).clamp(0.0, 1.0);
+            final i = pts.length == 1 ? 0 : (f * (pts.length - 1)).round();
+            if (i != _hoverIndex) setState(() => _hoverIndex = i);
+          }
+
           return MouseRegion(
             onExit: (_) => setState(() => _hoverIndex = null),
-            onHover: (e) {
-              final innerW = c.maxWidth - pad.left - pad.right;
-              if (innerW <= 0) return;
-              final f = ((e.localPosition.dx - pad.left) / innerW).clamp(0.0, 1.0);
-              final i = pts.length == 1 ? 0 : (f * (pts.length - 1)).round();
-              if (i != _hoverIndex) setState(() => _hoverIndex = i);
-            },
-            child: CustomPaint(
-              size: Size(c.maxWidth, widget.height),
-              painter: _LinePainter(
-                points: pts,
-                niceMax: _niceMax(),
-                hoverIndex: _hoverIndex,
-                line: scheme.primary,
-                grid: scheme.outlineVariant,
-                fill: scheme.primary.withValues(alpha: 0.14),
-                labelStyle: TextStyle(fontSize: 10, color: scheme.onSurfaceVariant),
+            onHover: (e) => pick(e.localPosition),
+            child: GestureDetector(
+              onTapDown: (d) => pick(d.localPosition),
+              onHorizontalDragUpdate: (d) => pick(d.localPosition),
+              child: CustomPaint(
+                size: Size(c.maxWidth, widget.height),
+                painter: _LinePainter(
+                  points: pts,
+                  niceMax: _niceMax(),
+                  hoverIndex: _hoverIndex,
+                  line: scheme.primary,
+                  grid: scheme.outlineVariant,
+                  fill: scheme.primary.withValues(alpha: 0.14),
+                  labelStyle: TextStyle(fontSize: 10, color: scheme.onSurfaceVariant),
+                ),
               ),
             ),
           );

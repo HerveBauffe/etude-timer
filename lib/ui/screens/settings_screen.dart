@@ -5,10 +5,11 @@ import 'package:flutter/services.dart';
 import '../../core/device_config.dart';
 import '../../core/formatting.dart';
 import '../controller.dart';
+import '../layout.dart';
 import '../theme.dart';
 import '../widgets/dialogs.dart';
 
-const String appVersion = '2.1.0';
+const String appVersion = '2.2.0';
 
 class SettingsScreen extends StatelessWidget {
   final AppController c;
@@ -19,7 +20,7 @@ class SettingsScreen extends StatelessWidget {
     final text = Theme.of(context).textTheme;
     final scheme = Theme.of(context).colorScheme;
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(24, 8, 24, 40),
+      padding: EdgeInsets.fromLTRB(isCompactWidth(context) ? 14 : 24, 8, isCompactWidth(context) ? 14 : 24, 40),
       child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 720),
@@ -32,7 +33,7 @@ class SettingsScreen extends StatelessWidget {
               _PomodoroSection(c: c),
               _FlowSection(c: c),
               _AppearanceSection(c: c),
-              _DataSection(c: c),
+              if (isMobilePlatform) _MobileDataSection(c: c) else _DataSection(c: c),
               _WebdavSection(c: c),
             ],
           ),
@@ -222,6 +223,34 @@ class _AppearanceSection extends StatelessWidget {
               onSelected: (_) => c.store.updateSettings((x) => x.palette = p.id),
             ),
         ]),
+      ],
+    );
+  }
+}
+
+/// Sur mobile les données restent dans le dossier privé de l'appli ; on les partage via WebDAV.
+class _MobileDataSection extends StatelessWidget {
+  final AppController c;
+  const _MobileDataSection({required this.c});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final text = Theme.of(context).textTheme;
+    return _Section(
+      title: 'Données',
+      subtitle: "Stockées dans l'espace privé de l'appli (invisible pour les autres applications).",
+      children: [
+        Text(
+          'Pour retrouver tes données sur un autre appareil (ordinateur, autre téléphone), '
+          'configure la synchronisation WebDAV ci-dessous avec le même serveur et le même fichier.',
+          style: text.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          "Désinstaller l'appli efface les données locales : garde la synchronisation activée.",
+          style: text.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+        ),
       ],
     );
   }

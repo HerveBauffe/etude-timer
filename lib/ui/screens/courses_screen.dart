@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/catalog.dart';
 import '../../core/models.dart';
 import '../controller.dart';
+import '../layout.dart';
 import '../widgets/dialogs.dart';
 
 /// Onglet « Cours » : créer, renommer, déplacer, archiver et supprimer dossiers, UE et cours,
@@ -412,30 +413,43 @@ class _CoursesScreenState extends State<CoursesScreen> {
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 820),
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+          padding: EdgeInsets.fromLTRB(isCompactWidth(context) ? 12 : 24, 8, isCompactWidth(context) ? 12 : 24, 12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(children: [
-                Expanded(
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text('Cours', style: text.headlineSmall),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Affichage : ${c.quadri.label} (filtre dans la barre latérale). Chaque cours appartient à un seul quadrimestre ; une UE peut en couvrir deux.',
-                      style: text.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
-                    ),
-                  ]),
-                ),
-                const SizedBox(width: 12),
-                FilledButton.tonalIcon(
+              Builder(builder: (context) {
+                final compact = isCompactWidth(context);
+                final intro = Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  if (!compact) Text('Cours', style: text.headlineSmall),
+                  if (!compact) const SizedBox(height: 4),
+                  Text(
+                    compact
+                        ? 'Affichage : ${c.quadri.label}. Un cours = un seul quadrimestre ; une UE peut en couvrir deux.'
+                        : 'Affichage : ${c.quadri.label} (filtre dans la barre latérale). Chaque cours appartient à un seul quadrimestre ; une UE peut en couvrir deux.',
+                    style: text.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
+                  ),
+                ]);
+                final addFolder = FilledButton.tonalIcon(
                   onPressed: () => _addFolder(null),
                   icon: const Icon(Icons.create_new_folder_outlined, size: 18),
                   label: const Text('Dossier'),
-                ),
-                const SizedBox(width: 8),
-                FilledButton.icon(onPressed: () => _addUE(null), icon: const Icon(Icons.add, size: 18), label: const Text('UE')),
-              ]),
+                );
+                final addUe = FilledButton.icon(onPressed: () => _addUE(null), icon: const Icon(Icons.add, size: 18), label: const Text('UE'));
+                if (compact) {
+                  return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    intro,
+                    const SizedBox(height: 8),
+                    Row(children: [Expanded(child: addFolder), const SizedBox(width: 8), Expanded(child: addUe)]),
+                  ]);
+                }
+                return Row(children: [
+                  Expanded(child: intro),
+                  const SizedBox(width: 12),
+                  addFolder,
+                  const SizedBox(width: 8),
+                  addUe,
+                ]);
+              }),
               const SizedBox(height: 16),
               Expanded(
                 child: Container(

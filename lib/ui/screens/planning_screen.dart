@@ -20,6 +20,7 @@ class PlanningScreen extends StatefulWidget {
 class _PlanningScreenState extends State<PlanningScreen> {
   bool _monthView = true;
   DateTime _anchor = _today();
+  DateTime? _selected; // jour choisi dans la vue mois compacte (téléphone)
 
   static DateTime _today() {
     final n = DateTime.now();
@@ -173,7 +174,7 @@ class _PlanningScreenState extends State<PlanningScreen> {
     );
   }
 
-  Widget _weekCard(PlanItem p) {
+  Widget _weekCard(PlanItem p, {bool fill = false}) {
     final scheme = Theme.of(context).colorScheme;
     final text = Theme.of(context).textTheme;
     final exam = p.isExam;
@@ -183,7 +184,7 @@ class _PlanningScreenState extends State<PlanningScreen> {
       if (!exam && p.estimatedMinutes != null) '~ ${estimateLabel(p.estimatedMinutes!)}',
     ].join(' · ');
     return SizedBox(
-      width: 300,
+      width: fill ? double.infinity : 300,
       child: Material(
         color: exam ? scheme.primary : scheme.secondaryContainer,
         borderRadius: BorderRadius.circular(16),
@@ -304,7 +305,7 @@ class _PlanningScreenState extends State<PlanningScreen> {
     );
   }
 
-  Widget _weekBody() {
+  Widget _weekBody({bool compact = false}) {
     final scheme = Theme.of(context).colorScheme;
     final text = Theme.of(context).textTheme;
     final today = _today();
@@ -325,7 +326,7 @@ class _PlanningScreenState extends State<PlanningScreen> {
                 padding: const EdgeInsets.all(10),
                 child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   SizedBox(
-                    width: 84,
+                    width: compact ? 64 : 84,
                     child: Padding(
                       padding: const EdgeInsets.only(left: 6, top: 4),
                       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -354,6 +355,119 @@ class _PlanningScreenState extends State<PlanningScreen> {
     ]);
   }
 
+  // ───────────── Vue mois compacte (téléphone / petite fenêtre) ─────────────
+
+  /// Jour affiché sous le calendrier compact : celui choisi s'il est dans le mois, sinon
+  /// aujourd'hui (si on est dans le mois affiché) ou le 1ᵉʳ.
+  DateTime _effectiveSelected() {
+    final s = _selected;
+    if (s != null && s.year == _anchor.year && s.month == _anchor.month) return s;
+    final t = _today();
+    if (t.year == _anchor.year && t.month == _anchor.month) return t;
+    return DateTime(_anchor.year, _anchor.month, 1);
+  }
+
+  /// Jour proposé par défaut aux boutons « Révision » / « Examen ».
+  DateTime _defaultDay({required bool compact}) {
+    if (!_monthView) return _anchor;
+    if (compact) return _effectiveSelected();
+    final n = DateTime.now();
+    return _anchor.month == n.month && _anchor.year == n.year ? _today() : _anchor;
+  }
+
+  Widget _compactMonthBody() {
+    final scheme = Theme.of(context).colorScheme;
+    final text = Theme.of(context).textTheme;
+    final weeks = monthGrid(_anchor.year, _anchor.month);
+    final today = _today();
+    final sel = _effectiveSelected();
+    final selItems = plansOn(c.store.data, dateKey(sel), courseIds: c.visibleIds);
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      Row(children: [
+        for (var i = 0; i < 7; i++)
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Text(weekdaysFrShort[(i + 1) % 7].substring(0, 1).toUpperCase(),
+                  textAlign: TextAlign.center, style: text.labelMedium?.copyWith(color: scheme.onSurfaceVariant)),
+            ),
+          ),
+      ]),
+      for (final week in weeks)
+        SizedBox(
+          height: 52,
+          child: Row(children: [
+            for (final day in week) Expanded(child: _compactCell(day, today, sel)),
+          ]),
+        ),
+      const SizedBox(height: 14),
+      Text(
+        '${weekdaysFrShort[sel.weekday % 7]} ${sel.day} ${monthsFrShort[sel.month - 1]}',
+        style: text.titleSmall,
+      ),
+      const SizedBox(height: 8),
+      if (selItems.isEmpty)
+        Text('Rien de prévu ce jour-là.', style: text.bodyMedium?.copyWith(color: scheme.onSurfaceVariant))
+      else
+        for (final p in selItems)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: _weekCard(p, fill: true),
+          ),
+    ]);
+  }
+
+  Widget _compactCell(DateTime day, DateTime today, DateTime sel) {
+    final scheme = Theme.of(context).colorScheme;
+    final inMonth = day.month == _anchor.month;
+    final isToday = day == today;
+    final isSel = day == sel;
+    final items = plansOn(c.store.data, dateKey(day), courseIds: c.visibleIds);
+    final hasExam = items.any((p) => p.isExam);
+    final revisions = items.where((p) => !p.isExam).length;
+    return Padding(
+      padding: const EdgeInsets.all(2),
+      child: Material(
+        color: isSel ? scheme.primaryContainer : (inMonth ? scheme.surfaceContainerLow : Colors.transparent),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+          side: isToday ? BorderSide(color: scheme.primary, width: 1.5) : BorderSide.none,
+        ),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(14),
+          onTap: () => setState(() => _selected = day),
+          child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+            Text(
+              '${day.day}',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: isToday || isSel ? FontWeight.w700 : FontWeight.w400,
+                color: isSel
+                    ? scheme.onPrimaryContainer
+                    : (inMonth ? scheme.onSurface : scheme.onSurfaceVariant.withValues(alpha: 0.5)),
+              ),
+            ),
+            const SizedBox(height: 3),
+            SizedBox(
+              height: 8,
+              child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                if (hasExam) _dot(scheme.primary, big: true),
+                for (var i = 0; i < revisions.clamp(0, 3); i++) _dot(scheme.secondary),
+              ]),
+            ),
+          ]),
+        ),
+      ),
+    );
+  }
+
+  Widget _dot(Color color, {bool big = false}) => Container(
+        width: big ? 8 : 6,
+        height: big ? 8 : 6,
+        margin: const EdgeInsets.symmetric(horizontal: 1.5),
+        decoration: BoxDecoration(color: color, shape: big ? BoxShape.rectangle : BoxShape.circle, borderRadius: big ? BorderRadius.circular(2) : null),
+      );
+
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
@@ -361,67 +475,95 @@ class _PlanningScreenState extends State<PlanningScreen> {
     final now = DateTime.now();
     final next = nextExam(c.store.data, now, courseIds: c.visibleIds);
 
-    return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 1100),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(24, 8, 24, 0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(children: [
-                Text('Planning', style: text.headlineSmall),
-                const SizedBox(width: 12),
-                Text(c.quadri.label, style: text.titleMedium?.copyWith(color: scheme.onSurfaceVariant)),
-                const Spacer(),
-                FilledButton.tonalIcon(
-                  onPressed: () => _add(PlanKind.revision, _monthView ? (_anchor.month == now.month && _anchor.year == now.year ? _today() : _anchor) : _anchor),
-                  icon: const Icon(Icons.edit_note, size: 18),
-                  label: const Text('Révision'),
+    return LayoutBuilder(builder: (context, box) {
+      final compact = box.maxWidth < 720;
+      final pad = compact ? 12.0 : 24.0;
+      final nextLine = Text(
+        next == null
+            ? 'Aucun examen planifié.'
+            : 'Prochain examen : ${next.title} — ${c.courseLabel(next.courseId)} · ${daysUntilLabel(daysUntil(next.date, now))}'
+                '${next.time != null ? ' à ${next.time}' : ''}',
+        style: text.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
+      );
+      final addRevision = FilledButton.tonalIcon(
+        onPressed: () => _add(PlanKind.revision, _defaultDay(compact: compact)),
+        icon: const Icon(Icons.edit_note, size: 18),
+        label: const Text('Révision'),
+      );
+      final addExam = FilledButton.icon(
+        onPressed: () => _add(PlanKind.exam, _defaultDay(compact: compact)),
+        icon: const Icon(Icons.assignment_outlined, size: 18),
+        label: const Text('Examen'),
+      );
+      final modeToggle = SegmentedButton<bool>(
+        showSelectedIcon: false,
+        segments: [
+          ButtonSegment(value: false, label: const Text('Semaine'), icon: compact ? null : const Icon(Icons.view_week_outlined)),
+          ButtonSegment(value: true, label: const Text('Mois'), icon: compact ? null : const Icon(Icons.calendar_month_outlined)),
+        ],
+        selected: {_monthView},
+        onSelectionChanged: (s) => setState(() => _monthView = s.first),
+      );
+      final title = Text(_title(), textAlign: TextAlign.center, style: text.titleMedium);
+
+      return Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1100),
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(pad, 8, pad, 0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (compact) ...[
+                  Row(children: [Expanded(child: addRevision), const SizedBox(width: 8), Expanded(child: addExam)]),
+                  const SizedBox(height: 8),
+                  nextLine,
+                  const SizedBox(height: 10),
+                  SizedBox(width: double.infinity, child: modeToggle),
+                  const SizedBox(height: 4),
+                  Row(children: [
+                    IconButton(tooltip: _monthView ? 'Mois précédent' : 'Semaine précédente', icon: const Icon(Icons.chevron_left), onPressed: () => _shift(-1)),
+                    Expanded(child: FittedBox(fit: BoxFit.scaleDown, child: title)),
+                    IconButton(tooltip: _monthView ? 'Mois suivant' : 'Semaine suivante', icon: const Icon(Icons.chevron_right), onPressed: () => _shift(1)),
+                    IconButton(tooltip: "Aujourd'hui", icon: const Icon(Icons.today), onPressed: () => setState(() {
+                          _anchor = _today();
+                          _selected = _today();
+                        })),
+                  ]),
+                ] else ...[
+                  Row(children: [
+                    Text('Planning', style: text.headlineSmall),
+                    const SizedBox(width: 12),
+                    Text(c.quadri.label, style: text.titleMedium?.copyWith(color: scheme.onSurfaceVariant)),
+                    const Spacer(),
+                    addRevision,
+                    const SizedBox(width: 8),
+                    addExam,
+                  ]),
+                  const SizedBox(height: 4),
+                  nextLine,
+                  const SizedBox(height: 12),
+                  Row(children: [
+                    modeToggle,
+                    const SizedBox(width: 12),
+                    IconButton(tooltip: _monthView ? 'Mois précédent' : 'Semaine précédente', icon: const Icon(Icons.chevron_left), onPressed: () => _shift(-1)),
+                    SizedBox(width: 190, child: title),
+                    IconButton(tooltip: _monthView ? 'Mois suivant' : 'Semaine suivante', icon: const Icon(Icons.chevron_right), onPressed: () => _shift(1)),
+                    TextButton(onPressed: () => setState(() => _anchor = _today()), child: const Text("Aujourd'hui")),
+                  ]),
+                ],
+                const SizedBox(height: 10),
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.only(bottom: 24),
+                    child: _monthView ? (compact ? _compactMonthBody() : _monthBody()) : _weekBody(compact: compact),
+                  ),
                 ),
-                const SizedBox(width: 8),
-                FilledButton.icon(
-                  onPressed: () => _add(PlanKind.exam, _monthView ? (_anchor.month == now.month && _anchor.year == now.year ? _today() : _anchor) : _anchor),
-                  icon: const Icon(Icons.assignment_outlined, size: 18),
-                  label: const Text('Examen'),
-                ),
-              ]),
-              const SizedBox(height: 4),
-              Text(
-                next == null
-                    ? 'Aucun examen planifié.'
-                    : 'Prochain examen : ${next.title} — ${c.courseLabel(next.courseId)} · ${daysUntilLabel(daysUntil(next.date, now))}'
-                        '${next.time != null ? ' à ${next.time}' : ''}',
-                style: text.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
-              ),
-              const SizedBox(height: 12),
-              Row(children: [
-                SegmentedButton<bool>(
-                  showSelectedIcon: false,
-                  segments: const [
-                    ButtonSegment(value: false, label: Text('Semaine'), icon: Icon(Icons.view_week_outlined)),
-                    ButtonSegment(value: true, label: Text('Mois'), icon: Icon(Icons.calendar_month_outlined)),
-                  ],
-                  selected: {_monthView},
-                  onSelectionChanged: (s) => setState(() => _monthView = s.first),
-                ),
-                const SizedBox(width: 12),
-                IconButton(tooltip: _monthView ? 'Mois précédent' : 'Semaine précédente', icon: const Icon(Icons.chevron_left), onPressed: () => _shift(-1)),
-                SizedBox(width: 190, child: Text(_title(), textAlign: TextAlign.center, style: text.titleMedium)),
-                IconButton(tooltip: _monthView ? 'Mois suivant' : 'Semaine suivante', icon: const Icon(Icons.chevron_right), onPressed: () => _shift(1)),
-                TextButton(onPressed: () => setState(() => _anchor = _today()), child: const Text("Aujourd'hui")),
-              ]),
-              const SizedBox(height: 10),
-              Expanded(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.only(bottom: 24),
-                  child: _monthView ? _monthBody() : _weekBody(),
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
-      ),
-    );
+      );
+    });
   }
 }

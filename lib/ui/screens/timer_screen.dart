@@ -6,12 +6,18 @@ import '../../core/models.dart';
 import '../../core/pomodoro.dart';
 import '../controller.dart';
 import '../theme.dart';
+import '../layout.dart';
+import '../widgets/course_sidebar.dart';
 import '../widgets/dialogs.dart';
 import '../widgets/timer_ring.dart';
 
 class TimerScreen extends StatelessWidget {
   final AppController c;
-  const TimerScreen({super.key, required this.c});
+
+  /// La liste des cours est affichée à côté du minuteur. Sinon (téléphone, tablette en portrait),
+  /// le choix du cours se fait par un bouton qui ouvre une feuille modale.
+  final bool sidebarVisible;
+  const TimerScreen({super.key, required this.c, this.sidebarVisible = true});
 
   @override
   Widget build(BuildContext context) {
@@ -19,7 +25,7 @@ class TimerScreen extends StatelessWidget {
     final course = c.store.courseById(courseId);
     final busy = c.busy;
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
+      padding: EdgeInsets.fromLTRB(isCompactWidth(context) ? 14 : 24, 8, isCompactWidth(context) ? 14 : 24, 32),
       child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 620),
@@ -35,7 +41,7 @@ class TimerScreen extends StatelessWidget {
                 onSelectionChanged: busy ? null : (s) => c.setMode(s.first),
               ),
               const SizedBox(height: 20),
-              _CourseHeader(c: c, courseId: courseId, hasCourse: course != null, busy: busy),
+              _CourseHeader(c: c, courseId: courseId, hasCourse: course != null, busy: busy, sidebarVisible: sidebarVisible),
               if (course != null && !busy) _ResumeBanner(c: c, courseId: courseId!),
               const SizedBox(height: 12),
               if (c.mode == TimerMode.pomodoro) _PomodoroCore(c: c) else _FlowCore(c: c),
@@ -55,7 +61,14 @@ class _CourseHeader extends StatelessWidget {
   final String? courseId;
   final bool hasCourse;
   final bool busy;
-  const _CourseHeader({required this.c, required this.courseId, required this.hasCourse, required this.busy});
+  final bool sidebarVisible;
+  const _CourseHeader({
+    required this.c,
+    required this.courseId,
+    required this.hasCourse,
+    required this.busy,
+    required this.sidebarVisible,
+  });
 
   Future<void> _quickNote(BuildContext context) async {
     final text = await promptText(
@@ -86,11 +99,21 @@ class _CourseHeader extends StatelessWidget {
         color: scheme.surfaceContainerLow,
         child: Padding(
           padding: const EdgeInsets.all(20),
-          child: Row(children: [
-            Icon(Icons.arrow_back, color: scheme.onSurfaceVariant),
-            const SizedBox(width: 12),
-            const Expanded(child: Text('Choisis un cours dans la liste de gauche (bouton ‹ › pour la replier ou la rouvrir) pour commencer.')),
-          ]),
+          child: sidebarVisible
+              ? Row(children: [
+                  Icon(Icons.arrow_back, color: scheme.onSurfaceVariant),
+                  const SizedBox(width: 12),
+                  const Expanded(child: Text('Choisis un cours dans la liste de gauche (bouton ‹ › pour la replier ou la rouvrir) pour commencer.')),
+                ])
+              : Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  const Text('Choisis un cours pour commencer.'),
+                  const SizedBox(height: 12),
+                  FilledButton.icon(
+                    onPressed: () => showCoursePicker(context, c),
+                    icon: const Icon(Icons.menu_book_outlined, size: 18),
+                    label: Text('Choisir un cours · ${c.quadri.label}'),
+                  ),
+                ]),
         ),
       );
     }
@@ -102,6 +125,12 @@ class _CourseHeader extends StatelessWidget {
       children: [
         Text(c.courseLabel(courseId), style: Theme.of(context).textTheme.titleMedium),
         if (!busy) ...[
+          if (!sidebarVisible)
+            OutlinedButton.icon(
+              onPressed: () => showCoursePicker(context, c),
+              icon: const Icon(Icons.swap_horiz, size: 18),
+              label: const Text('Changer'),
+            ),
           FilledButton.tonalIcon(
             onPressed: () => _quickNote(context),
             icon: const Icon(Icons.sticky_note_2_outlined, size: 18),

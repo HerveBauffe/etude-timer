@@ -642,8 +642,8 @@ class _PlanDialogState extends State<_PlanDialog> {
               SegmentedButton<PlanKind>(
                 showSelectedIcon: false,
                 segments: const [
-                  ButtonSegment(value: PlanKind.revision, label: Text('Révision'), icon: Icon(Icons.edit_note)),
-                  ButtonSegment(value: PlanKind.exam, label: Text('Examen'), icon: Icon(Icons.assignment_outlined)),
+                  ButtonSegment(value: PlanKind.revision, label: Text('Révision')),
+                  ButtonSegment(value: PlanKind.exam, label: Text('Examen')),
                 ],
                 selected: {_kind},
                 onSelectionChanged: (v) => setState(() => _kind = v.first),

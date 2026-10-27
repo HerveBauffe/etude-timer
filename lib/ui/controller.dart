@@ -93,21 +93,65 @@ class AppController extends ChangeNotifier {
     if (device.webdav.isUsable) unawaited(syncNow(silent: true));
   }
 
-  /// Fermeture : enregistre le travail en cours, synchronise une dernière fois (5 s max), quitte.
+  bool _shuttingDown = false;
+
+  /// Fermeture : enregistre le travail en cours, synchronise une dernière fois (5 s max) et libère
+  /// le verrou. Idempotente. La fenêtre est détruite ensuite par [WindowService].
   Future<void> shutdown() async {
-    if (pomodoro.isWork) pomodoro.endSession();
-    flow.flushOnClose();
+    if (_shuttingDown) return;
+    _shuttingDown = true;
+    try {
+      if (pomodoro.isWork) pomodoro.endSession();
+      flow.flushOnClose();
+    } catch (_) {
+      // on continue : la fermeture ne doit jamais rester bloquée
+    }
     _ticker?.cancel();
+    _ticker = null;
     _syncTimer?.cancel();
+    _syncTimer = null;
     if (device.webdav.isUsable) {
       try {
+        // Une synchro déjà en cours ne contient pas la séance qu'on vient d'enregistrer : on
+        // l'attend (brièvement) pour relancer une vraie synchro juste après.
+        final deadline = DateTime.now().add(const Duration(seconds: 2));
+        while (sync.isRunning && DateTime.now().isBefore(deadline)) {
+          await Future<void>.delayed(const Duration(milliseconds: 100));
+        }
         await sync.sync().timeout(const Duration(seconds: 5));
       } catch (_) {
         // hors ligne ou trop lent : les données restent enregistrées localement
       }
     }
-    await _instance?.release();
-    await window.destroy();
+    try {
+      await _instance?.release();
+    } catch (_) {}
+    _instance = null;
+  }
+
+  /// L'appli revient au premier plan (mobile : écran rallumé, retour d'une autre appli).
+  /// Les minuteurs sont basés sur l'horloge : on les remet à l'heure d'un coup, puis on synchronise
+  /// si la dernière synchro est ancienne.
+  void onResumed() {
+    if (_shuttingDown) return;
+    pomodoro.tick();
+    flow.tick();
+    tick.value++;
+    _refreshTicker();
+    _notifySafe();
+    if (device.webdav.isUsable && !syncing) {
+      final last = DateTime.tryParse(device.lastSyncedAt ?? '');
+      final every = device.webdav.autoSyncMinutes;
+      final stale = last == null || DateTime.now().difference(last).inMinutes >= (every > 0 ? every : 15);
+      if (stale) unawaited(syncNow(silent: true));
+    }
+  }
+
+  /// L'appli passe en arrière-plan (mobile) : les données sont déjà enregistrées à chaque
+  /// modification ; on tente seulement d'envoyer ce qui est nouveau.
+  void onBackgrounded() {
+    if (_shuttingDown || !device.webdav.isUsable || syncing) return;
+    unawaited(syncNow(silent: true));
   }
 
   @override

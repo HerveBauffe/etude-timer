@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../../core/formatting.dart';
@@ -6,6 +8,7 @@ import '../../core/quadri.dart';
 import '../../core/stats.dart';
 import '../../core/util.dart';
 import '../controller.dart';
+import '../layout.dart';
 import '../theme.dart';
 import '../widgets/dialogs.dart';
 import '../widgets/heatmap.dart';
@@ -81,10 +84,15 @@ class _StatsScreenState extends State<StatsScreen> {
             children: [
               Padding(
                 padding: const EdgeInsets.only(left: 4, bottom: 8),
-                child: Row(children: [
-                  Expanded(child: Text(title, style: text.titleMedium)),
-                  if (trailing != null) trailing,
-                ]),
+                child: Wrap(
+                  alignment: WrapAlignment.spaceBetween,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  runSpacing: 6,
+                  children: [
+                    Text(title, style: text.titleMedium),
+                    if (trailing != null) trailing,
+                  ],
+                ),
               ),
               Card(color: scheme.surfaceContainerLow, child: Padding(padding: const EdgeInsets.all(16), child: child)),
             ],
@@ -92,7 +100,7 @@ class _StatsScreenState extends State<StatsScreen> {
         );
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(24, 8, 24, 40),
+      padding: EdgeInsets.fromLTRB(isCompactWidth(context) ? 12 : 24, 8, isCompactWidth(context) ? 12 : 24, 40),
       child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 900),
@@ -106,7 +114,7 @@ class _StatsScreenState extends State<StatsScreen> {
               const SizedBox(height: 16),
               DropdownMenu<String?>(
                 key: ValueKey(c.statsCourseId),
-                width: 360,
+                width: math.min(360, MediaQuery.sizeOf(context).width - 56),
                 initialSelection: c.statsCourseId,
                 label: const Text('Filtrer par cours'),
                 leadingIcon: const Icon(Icons.filter_list),

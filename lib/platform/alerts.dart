@@ -12,10 +12,21 @@ import 'package:flutter/services.dart';
 class AlertService {
   bool _soundBusy = false;
 
+  bool get _mobile => Platform.isAndroid || Platform.isIOS;
+
   Future<void> playSound() async {
     if (_soundBusy) return;
     _soundBusy = true;
     try {
+      if (_mobile) {
+        // Android n'a pas de « bip système » utilisable depuis Flutter : on vibre (3 impulsions).
+        // Le son et la notification quand l'écran est éteint demanderont un service d'arrière-plan.
+        for (var i = 0; i < 3; i++) {
+          await HapticFeedback.vibrate();
+          await Future<void>.delayed(const Duration(milliseconds: 350));
+        }
+        return;
+      }
       if (Platform.isLinux) {
         for (final cmd in const [
           ['canberra-gtk-play', '-i', 'complete'],
@@ -36,7 +47,7 @@ class AlertService {
   }
 
   Future<void> notify(String title, String body) async {
-    if (!Platform.isLinux) return;
+    if (!Platform.isLinux) return; // Windows/mobile : message affiché dans l'appli
     try {
       await Process.run('notify-send', ['--app-name=Étude Timer', '--urgency=normal', title, body])
           .timeout(const Duration(seconds: 5));

@@ -4,17 +4,20 @@ import '../../core/models.dart';
 import '../../core/quadri.dart';
 import '../controller.dart';
 
-/// Liste des cours du quadrimestre choisi, à gauche du minuteur : réductible, développée par défaut.
-/// (La gestion — création, renommage, déplacement, archivage — se fait dans l'onglet « Cours ».)
-class CourseSidebar extends StatefulWidget {
+/// Contenu de la liste des cours (groupés par UE, archives repliables, état vide).
+/// Utilisé dans le panneau latéral du minuteur et dans la feuille modale des petits écrans.
+class CourseListBody extends StatefulWidget {
   final AppController c;
-  const CourseSidebar({super.key, required this.c});
+
+  /// Appelé après le choix d'un cours (ex. pour fermer la feuille modale).
+  final VoidCallback? onSelected;
+  const CourseListBody({super.key, required this.c, this.onSelected});
 
   @override
-  State<CourseSidebar> createState() => _CourseSidebarState();
+  State<CourseListBody> createState() => _CourseListBodyState();
 }
 
-class _CourseSidebarState extends State<CourseSidebar> {
+class _CourseListBodyState extends State<CourseListBody> {
   bool _archivesOpen = false;
 
   AppController get c => widget.c;
@@ -44,7 +47,12 @@ class _CourseSidebarState extends State<CourseSidebar> {
         borderRadius: BorderRadius.circular(20),
         child: InkWell(
           borderRadius: BorderRadius.circular(20),
-          onTap: enabled ? () => c.selectCourse(x.id) : null,
+          onTap: enabled
+              ? () {
+                  c.selectCourse(x.id);
+                  widget.onSelected?.call();
+                }
+              : null,
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
             child: Row(children: [
@@ -87,45 +95,9 @@ class _CourseSidebarState extends State<CourseSidebar> {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final decoration = BoxDecoration(color: scheme.surfaceContainerLow, borderRadius: BorderRadius.circular(24));
-
-    if (!c.sidebarOpen) {
-      return Container(
-        width: 56,
-        decoration: decoration,
-        child: Column(children: [
-          const SizedBox(height: 8),
-          IconButton(
-            tooltip: 'Afficher la liste des cours',
-            icon: const Icon(Icons.chevron_right),
-            onPressed: c.toggleSidebar,
-          ),
-          const SizedBox(height: 4),
-          RotatedBox(
-            quarterTurns: 3,
-            child: Text('Cours · ${c.quadri.label}', style: Theme.of(context).textTheme.labelLarge?.copyWith(color: scheme.onSurfaceVariant)),
-          ),
-        ]),
-      );
-    }
-
     final active = _groups(archived: false);
     final archived = _groups(archived: true);
-    return Container(
-      width: 280,
-      decoration: decoration,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 10, 4, 0),
-            child: Row(children: [
-              Expanded(child: Text('Cours · ${c.quadri.label}', style: Theme.of(context).textTheme.titleMedium)),
-              IconButton(tooltip: 'Réduire la liste', icon: const Icon(Icons.chevron_left), onPressed: c.toggleSidebar),
-            ]),
-          ),
-          Expanded(
-            child: active.isEmpty && archived.isEmpty
+    return active.isEmpty && archived.isEmpty
                 ? Padding(
                     padding: const EdgeInsets.all(20),
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -135,7 +107,10 @@ class _CourseSidebarState extends State<CourseSidebar> {
                       ),
                       const SizedBox(height: 12),
                       FilledButton.tonalIcon(
-                        onPressed: () => c.setView(AppView.courses),
+                        onPressed: () {
+                          c.setView(AppView.courses);
+                          widget.onSelected?.call();
+                        },
                         icon: const Icon(Icons.school_outlined, size: 18),
                         label: const Text('Gérer les cours'),
                       ),
@@ -167,10 +142,83 @@ class _CourseSidebarState extends State<CourseSidebar> {
                         if (_archivesOpen) ..._groupWidgets(archived, scheme),
                       ],
                     ],
-                  ),
+                  );
+  }
+}
+
+/// Liste des cours du quadrimestre choisi, à gauche du minuteur : réductible, développée par défaut.
+/// (La gestion — création, renommage, déplacement, archivage — se fait dans l'onglet « Cours ».)
+class CourseSidebar extends StatelessWidget {
+  final AppController c;
+  const CourseSidebar({super.key, required this.c});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final decoration = BoxDecoration(color: scheme.surfaceContainerLow, borderRadius: BorderRadius.circular(24));
+
+    if (!c.sidebarOpen) {
+      return Container(
+        width: 56,
+        decoration: decoration,
+        child: Column(children: [
+          const SizedBox(height: 8),
+          IconButton(
+            tooltip: 'Afficher la liste des cours',
+            icon: const Icon(Icons.chevron_right),
+            onPressed: c.toggleSidebar,
           ),
+          const SizedBox(height: 4),
+          RotatedBox(
+            quarterTurns: 3,
+            child: Text('Cours · ${c.quadri.label}', style: Theme.of(context).textTheme.labelLarge?.copyWith(color: scheme.onSurfaceVariant)),
+          ),
+        ]),
+      );
+    }
+
+    return Container(
+      width: 280,
+      decoration: decoration,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 10, 4, 0),
+            child: Row(children: [
+              Expanded(child: Text('Cours · ${c.quadri.label}', style: Theme.of(context).textTheme.titleMedium)),
+              IconButton(tooltip: 'Réduire la liste', icon: const Icon(Icons.chevron_left), onPressed: c.toggleSidebar),
+            ]),
+          ),
+          Expanded(child: CourseListBody(c: c)),
         ],
       ),
     );
   }
+}
+
+/// Feuille modale « Choisir un cours » pour les petits écrans (téléphone, tablette en portrait).
+Future<void> showCoursePicker(BuildContext context, AppController c) {
+  return showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    useSafeArea: true,
+    showDragHandle: true,
+    builder: (sheetContext) => SizedBox(
+      height: MediaQuery.sizeOf(sheetContext).height * 0.75,
+      child: ListenableBuilder(
+        listenable: c,
+        builder: (context, _) => Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 4),
+              child: Text('Cours · ${c.quadri.label}', style: Theme.of(context).textTheme.titleMedium),
+            ),
+            Expanded(child: CourseListBody(c: c, onSelected: () => Navigator.of(sheetContext).pop())),
+          ],
+        ),
+      ),
+    ),
+  );
 }

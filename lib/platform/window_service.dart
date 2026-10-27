@@ -27,14 +27,26 @@ class WindowService with WindowListener {
     windowManager.addListener(this);
   }
 
+  bool _closing = false;
+
+  /// Demande de fermeture (croix, Alt+F4…). Réentrance impossible : sous Linux, `destroy()`
+  /// referme la fenêtre GTK et le plugin renvoie alors un nouvel événement « close » ; sans
+  /// garde, la routine d'arrêt (synchro, libération du verrou, destruction) tournait deux fois
+  /// et la seconde passe agissait sur une fenêtre déjà détruite → plantage à la fermeture.
   @override
   void onWindowClose() {
+    if (_closing) return;
+    _closing = true;
     final cb = onCloseRequested;
-    if (cb != null) {
-      cb();
-    } else {
-      destroy();
-    }
+    () async {
+      try {
+        if (cb != null) await cb();
+      } catch (_) {
+        // quoi qu'il arrive à l'enregistrement/synchro, la fenêtre doit pouvoir se fermer
+      } finally {
+        await destroy();
+      }
+    }();
   }
 
   /// Ramène la fenêtre devant les autres (fin de phase, 2ᵉ lancement de l'appli).
@@ -53,11 +65,23 @@ class WindowService with WindowListener {
     }
   }
 
+  bool _destroyed = false;
+
   Future<void> destroy() async {
+    if (_destroyed) return;
+    _destroyed = true;
     if (!isDesktop) {
       exit(0);
     }
-    await windowManager.setPreventClose(false);
-    await windowManager.destroy();
+    try {
+      // On ne veut plus d'événements : la fenêtre est sur le point de disparaître.
+      windowManager.removeListener(this);
+      await windowManager.setPreventClose(false);
+      await windowManager.destroy();
+    } catch (_) {
+      // la fenêtre est peut-être déjà partie
+    }
+    // Filet de sécurité : si le processus est toujours là 3 s après, on le termine.
+    Future<void>.delayed(const Duration(seconds: 3), () => exit(0));
   }
 }

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/formatting.dart';
 import '../../core/stats.dart';
 import '../../core/util.dart';
+import '../layout.dart';
 
 /// Carte thermique façon « calendrier de contributions » (53 semaines, lundi en haut).
 class Heatmap extends StatefulWidget {
@@ -48,12 +49,32 @@ class _HeatmapState extends State<Heatmap> {
     final width = leftGutter + grid.length * (cell + gap);
     const height = topGutter + 7 * (cell + gap);
 
+    /// Détail d'une case (survol à la souris, toucher sur mobile).
+    void pick(Offset pos) {
+      final x = pos.dx - leftGutter;
+      final y = pos.dy - topGutter;
+      String? text;
+      if (x >= 0 && y >= 0) {
+        final w = (x / (cell + gap)).floor();
+        final d = (y / (cell + gap)).floor();
+        if (w >= 0 && w < grid.length && d >= 0 && d < 7) {
+          final day = grid[w][d];
+          if (!day.isAfter(today)) {
+            final k = dateKey(day);
+            text = '${weekdaysFrShort[day.weekday % 7]} ${day.day} ${monthsFrShort[day.month - 1]} ${day.year} — '
+                '${formatMinutesLabel((widget.minutesByDate[k] ?? 0) * 60)}';
+          }
+        }
+      }
+      if (text != _hover) setState(() => _hover = text);
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         SizedBox(
           height: 20,
-          child: Text(_hover ?? 'Survole une case pour voir le détail',
+          child: Text(_hover ?? (isMobilePlatform ? 'Touche une case pour voir le détail' : 'Survole une case pour voir le détail'),
               style: Theme.of(context).textTheme.labelMedium?.copyWith(color: scheme.onSurfaceVariant)),
         ),
         const SizedBox(height: 4),
@@ -62,32 +83,18 @@ class _HeatmapState extends State<Heatmap> {
           scrollDirection: Axis.horizontal,
           child: MouseRegion(
             onExit: (_) => setState(() => _hover = null),
-            onHover: (e) {
-              final x = e.localPosition.dx - leftGutter;
-              final y = e.localPosition.dy - topGutter;
-              String? text;
-              if (x >= 0 && y >= 0) {
-                final w = (x / (cell + gap)).floor();
-                final d = (y / (cell + gap)).floor();
-                if (w >= 0 && w < grid.length && d >= 0 && d < 7) {
-                  final day = grid[w][d];
-                  if (!day.isAfter(today)) {
-                    final k = dateKey(day);
-                    text = '${weekdaysFrShort[day.weekday % 7]} ${day.day} ${monthsFrShort[day.month - 1]} ${day.year} — '
-                        '${formatMinutesLabel((widget.minutesByDate[k] ?? 0) * 60)}';
-                  }
-                }
-              }
-              if (text != _hover) setState(() => _hover = text);
-            },
-            child: CustomPaint(
-              size: Size(width, height),
-              painter: _HeatPainter(
-                grid: grid,
-                today: today,
-                minutes: widget.minutesByDate,
-                colorFor: (l) => _levelColor(scheme, l),
-                labelStyle: TextStyle(fontSize: 10, color: scheme.onSurfaceVariant),
+            onHover: (e) => pick(e.localPosition),
+            child: GestureDetector(
+              onTapDown: (d) => pick(d.localPosition),
+              child: CustomPaint(
+                size: Size(width, height),
+                painter: _HeatPainter(
+                  grid: grid,
+                  today: today,
+                  minutes: widget.minutesByDate,
+                  colorFor: (l) => _levelColor(scheme, l),
+                  labelStyle: TextStyle(fontSize: 10, color: scheme.onSurfaceVariant),
+                ),
               ),
             ),
           ),

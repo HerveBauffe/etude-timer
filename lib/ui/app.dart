@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../core/quadri.dart';
 import 'controller.dart';
 import 'fr_localizations.dart';
+import 'layout.dart';
 import 'screens/courses_screen.dart';
 import 'screens/planning_screen.dart';
 import 'screens/settings_screen.dart';
@@ -52,15 +53,24 @@ class Shell extends StatefulWidget {
   State<Shell> createState() => _ShellState();
 }
 
-class _ShellState extends State<Shell> {
+class _ShellState extends State<Shell> with WidgetsBindingObserver {
   StreamSubscription<String>? _sub;
   final GlobalKey<ScaffoldMessengerState> _messenger = GlobalKey<ScaffoldMessengerState>();
 
   AppController get c => widget.controller;
 
+  static const _titles = {
+    AppView.timer: 'Minuteur',
+    AppView.courses: 'Cours',
+    AppView.planning: 'Planning',
+    AppView.stats: 'Statistiques',
+    AppView.settings: 'Réglages',
+  };
+
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _sub = c.messages.listen((m) {
       final state = _messenger.currentState;
       if (state == null) return;
@@ -71,52 +81,115 @@ class _ShellState extends State<Shell> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _sub?.cancel();
     super.dispose();
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (!isMobilePlatform) return; // sur bureau, perdre le focus ne veut pas dire « en arrière-plan »
+    if (state == AppLifecycleState.resumed) c.onResumed();
+    if (state == AppLifecycleState.paused) c.onBackgrounded();
+  }
+
+  /// Bouton « retour » du système (Android) : revient au minuteur ; ne quitte jamais en pleine séance.
+  void _onBack() {
+    if (c.view != AppView.timer) {
+      c.setView(AppView.timer);
+    } else if (c.busy) {
+      c.showMessage("Une séance est en cours : utilise le bouton Accueil pour laisser l'appli en arrière-plan.");
+    }
+  }
+
+  Widget _content(ColorScheme scheme, {required bool sidebar}) {
+    return switch (c.view) {
+      AppView.timer => sidebar
+          ? Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                CourseSidebar(c: c),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(color: scheme.surface, borderRadius: BorderRadius.circular(24)),
+                    child: TimerScreen(c: c),
+                  ),
+                ),
+              ],
+            )
+          : TimerScreen(c: c, sidebarVisible: false),
+      AppView.courses => CoursesScreen(c: c),
+      AppView.planning => PlanningScreen(c: c),
+      AppView.stats => StatsScreen(c: c),
+      AppView.settings => SettingsScreen(c: c),
+    };
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return ScaffoldMessenger(
-      key: _messenger,
-      child: Builder(
-        builder: (context) {
-          final scheme = Theme.of(context).colorScheme;
-          return Scaffold(
-            body: SafeArea(
-              child: Row(
-                children: [
-                  _SideNav(c: c),
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(0, 12, 12, 12),
-                      child: switch (c.view) {
-                        AppView.timer => Row(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              CourseSidebar(c: c),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: DecoratedBox(
-                                  decoration: BoxDecoration(color: scheme.surface, borderRadius: BorderRadius.circular(24)),
-                                  child: TimerScreen(c: c),
-                                ),
-                              ),
-                            ],
+    return LayoutBuilder(
+      builder: (context, box) {
+        final compact = box.maxWidth < compactBreakpoint;
+        final wide = !isMobilePlatform || box.maxWidth >= wideBreakpoint;
+        return ScaffoldMessenger(
+          key: _messenger,
+          child: Builder(
+            builder: (context) {
+              final scheme = Theme.of(context).colorScheme;
+              final Widget scaffold;
+              if (compact) {
+                scaffold = Scaffold(
+                  appBar: AppBar(
+                    title: Text(_titles[c.view]!),
+                    actions: [
+                      _QuadriToggle(c: c, horizontal: true),
+                      _SyncButton(c: c),
+                      const SizedBox(width: 4),
+                    ],
+                  ),
+                  body: Padding(
+                    padding: const EdgeInsets.fromLTRB(4, 0, 4, 0),
+                    child: _content(scheme, sidebar: false),
+                  ),
+                  bottomNavigationBar: NavigationBar(
+                    selectedIndex: AppView.values.indexOf(c.view),
+                    onDestinationSelected: (i) => c.setView(AppView.values[i]),
+                    labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+                    destinations: [
+                      for (final (_, icon, selectedIcon, label) in _SideNav.items)
+                        NavigationDestination(icon: Icon(icon), selectedIcon: Icon(selectedIcon), label: label),
+                    ],
+                  ),
+                );
+              } else {
+                scaffold = Scaffold(
+                  body: SafeArea(
+                    child: Row(
+                      children: [
+                        _SideNav(c: c),
+                        Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(0, 12, 12, 12),
+                            child: _content(scheme, sidebar: wide),
                           ),
-                        AppView.courses => CoursesScreen(c: c),
-                        AppView.planning => PlanningScreen(c: c),
-                        AppView.stats => StatsScreen(c: c),
-                        AppView.settings => SettingsScreen(c: c),
-                      },
+                        ),
+                      ],
                     ),
                   ),
-                ],
-              ),
-            ),
-          );
-        },
-      ),
+                );
+              }
+              return PopScope(
+                canPop: c.view == AppView.timer && !c.busy,
+                onPopInvokedWithResult: (didPop, _) {
+                  if (!didPop) _onBack();
+                },
+                child: scaffold,
+              );
+            },
+          ),
+        );
+      },
     );
   }
 }
@@ -128,7 +201,7 @@ class _SideNav extends StatelessWidget {
   final AppController c;
   const _SideNav({required this.c});
 
-  static const _items = [
+  static const items = [
     (AppView.timer, Icons.timer_outlined, Icons.timer, 'Minuteur'),
     (AppView.courses, Icons.school_outlined, Icons.school, 'Cours'),
     (AppView.planning, Icons.calendar_month_outlined, Icons.calendar_month, 'Planning'),
@@ -146,7 +219,7 @@ class _SideNav extends StatelessWidget {
             child: ListView(
               padding: const EdgeInsets.only(top: 12, bottom: 8),
               children: [
-                for (final (view, icon, selectedIcon, label) in _items)
+                for (final (view, icon, selectedIcon, label) in items)
                   _NavItem(
                     icon: c.view == view ? selectedIcon : icon,
                     label: label,
@@ -213,7 +286,10 @@ class _NavItem extends StatelessWidget {
 /// Q1 / Q2 / Q1+Q2 : n'affiche que les cours du quadrimestre choisi dans tous les écrans.
 class _QuadriToggle extends StatelessWidget {
   final AppController c;
-  const _QuadriToggle({required this.c});
+
+  /// En ligne (barre du haut sur téléphone) ou en colonne (barre latérale).
+  final bool horizontal;
+  const _QuadriToggle({required this.c, this.horizontal = false});
 
   static const _tips = {
     QuadriFilter.q1: 'Afficher les cours du 1er quadrimestre',
@@ -221,44 +297,51 @@ class _QuadriToggle extends StatelessWidget {
     QuadriFilter.both: 'Afficher les cours des deux quadrimestres',
   };
 
-  @override
-  Widget build(BuildContext context) {
+  Widget _pill(BuildContext context, QuadriFilter f) {
     final scheme = Theme.of(context).colorScheme;
-    return Container(
-      width: 68,
-      padding: const EdgeInsets.all(3),
-      decoration: BoxDecoration(color: scheme.surfaceContainerHighest, borderRadius: BorderRadius.circular(18)),
-      child: Column(mainAxisSize: MainAxisSize.min, children: [
-        for (final f in QuadriFilter.values)
-          Tooltip(
-            message: _tips[f]!,
-            child: Semantics(
-              button: true,
-              selected: c.quadri == f,
-              child: Material(
-                color: c.quadri == f ? scheme.primary : Colors.transparent,
-                borderRadius: BorderRadius.circular(15),
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(15),
-                  onTap: () => c.setQuadri(f),
-                  child: SizedBox(
-                    height: 30,
-                    child: Center(
-                      child: Text(
-                        f.label,
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: c.quadri == f ? FontWeight.w700 : FontWeight.w500,
-                          color: c.quadri == f ? scheme.onPrimary : scheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ),
+    final selected = c.quadri == f;
+    return Tooltip(
+      message: _tips[f]!,
+      child: Semantics(
+        button: true,
+        selected: selected,
+        child: Material(
+          color: selected ? scheme.primary : Colors.transparent,
+          borderRadius: BorderRadius.circular(15),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(15),
+            onTap: () => c.setQuadri(f),
+            child: SizedBox(
+              height: horizontal ? 32 : 30,
+              width: horizontal ? (f == QuadriFilter.both ? 56 : 38) : null,
+              child: Center(
+                child: Text(
+                  f.label,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                    color: selected ? scheme.onPrimary : scheme.onSurfaceVariant,
                   ),
                 ),
               ),
             ),
           ),
-      ]),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final pills = [for (final f in QuadriFilter.values) _pill(context, f)];
+    return Container(
+      width: horizontal ? null : 68,
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(color: scheme.surfaceContainerHighest, borderRadius: BorderRadius.circular(18)),
+      child: horizontal
+          ? Row(mainAxisSize: MainAxisSize.min, children: pills)
+          : Column(mainAxisSize: MainAxisSize.min, children: pills),
     );
   }
 }
