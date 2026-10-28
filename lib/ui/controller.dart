@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../core/catalog.dart';
+import '../core/close_log.dart';
 import '../core/data_store.dart';
 import '../core/device_config.dart';
 import '../core/flow.dart';
@@ -28,6 +29,9 @@ class AppController extends ChangeNotifier {
   final DeviceConfig device;
   final AlertService alerts;
   final WindowService window;
+
+  /// Journal de fermeture (diagnostic d'un éventuel plantage en quittant).
+  late final CloseLog closeLog = CloseLog(paths.join(paths.bootstrapDir, 'close.log'))..reset();
   SingleInstance? _instance;
 
   late final PomodoroEngine pomodoro;
@@ -81,6 +85,7 @@ class AppController extends ChangeNotifier {
     sync = SyncService(store, device, () => WebDavClient(device.webdav));
     store.addListener(_onStoreChanged);
     window.onCloseRequested = shutdown;
+    window.log = closeLog.add;
   }
 
   // ───────────── Démarrage / arrêt ─────────────
@@ -100,11 +105,13 @@ class AppController extends ChangeNotifier {
   Future<void> shutdown() async {
     if (_shuttingDown) return;
     _shuttingDown = true;
+    closeLog.add('arrêt : début (pomodoro=${pomodoro.phase.name}, flow=${flow.phase.name})');
     try {
       if (pomodoro.isWork) pomodoro.endSession();
       flow.flushOnClose();
-    } catch (_) {
-      // on continue : la fermeture ne doit jamais rester bloquée
+      closeLog.add('arrêt : séance en cours enregistrée');
+    } catch (e) {
+      closeLog.add('arrêt : erreur à l\'enregistrement $e'); // on continue : la fermeture ne doit jamais rester bloquée
     }
     _ticker?.cancel();
     _ticker = null;
@@ -118,14 +125,19 @@ class AppController extends ChangeNotifier {
         while (sync.isRunning && DateTime.now().isBefore(deadline)) {
           await Future<void>.delayed(const Duration(milliseconds: 100));
         }
+        closeLog.add('arrêt : synchro finale…');
         await sync.sync().timeout(const Duration(seconds: 5));
-      } catch (_) {
-        // hors ligne ou trop lent : les données restent enregistrées localement
+        closeLog.add('arrêt : synchro finale terminée');
+      } catch (e) {
+        closeLog.add('arrêt : synchro finale abandonnée ($e)'); // hors ligne ou trop lent : données déjà enregistrées
       }
     }
     try {
       await _instance?.release();
-    } catch (_) {}
+      closeLog.add('arrêt : verrou mono-instance libéré');
+    } catch (e) {
+      closeLog.add('arrêt : erreur libération du verrou $e');
+    }
     _instance = null;
   }
 

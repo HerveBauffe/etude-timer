@@ -1,7 +1,7 @@
 name: etude_timer
 description: Suivi du temps d'étude par cours — Pomodoro, Flow Zone, statistiques, blocus et synchronisation WebDAV.
 publish_to: none
-version: 2.2.0+1
+version: 2.2.1+1
 
 environment:
   sdk: ">=3.9.0 <4.0.0"

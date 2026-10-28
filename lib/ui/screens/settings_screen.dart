@@ -9,7 +9,7 @@ import '../layout.dart';
 import '../theme.dart';
 import '../widgets/dialogs.dart';
 
-const String appVersion = '2.2.0';
+const String appVersion = '2.2.1';
 
 class SettingsScreen extends StatelessWidget {
   final AppController c;
@@ -133,7 +133,7 @@ class _NumFieldState extends State<_NumField> {
       child: Row(children: [
         Expanded(child: Text(widget.label)),
         SizedBox(
-          width: 120,
+          width: 104,
           child: TextField(
             controller: _c,
             focusNode: _focus,
@@ -183,7 +183,7 @@ class _FlowSection extends StatelessWidget {
       title: 'Flow Zone',
       subtitle: 'À l\'arrêt, la pause méritée est un pourcentage du temps travaillé.',
       children: [
-        _NumField(label: 'Pause méritée', suffix: '% du temps', value: s.flowBreakPercent, min: 1, max: 100, onChanged: (v) => c.store.updateSettings((x) => x.flowBreakPercent = v)),
+        _NumField(label: 'Pause méritée (en % du temps travaillé)', suffix: '%', value: s.flowBreakPercent, min: 1, max: 100, onChanged: (v) => c.store.updateSettings((x) => x.flowBreakPercent = v)),
       ],
     );
   }

@@ -8,6 +8,9 @@ class WindowService with WindowListener {
   /// Appelé quand l'utilisateur ferme la fenêtre. Doit finir par appeler [destroy].
   Future<void> Function()? onCloseRequested;
 
+  /// Journal de fermeture (diagnostic) ; branché par le contrôleur.
+  void Function(String message)? log;
+
   bool get isDesktop => Platform.isWindows || Platform.isLinux || Platform.isMacOS;
 
   Future<void> init() async {
@@ -67,21 +70,34 @@ class WindowService with WindowListener {
 
   bool _destroyed = false;
 
+  /// Ferme la fenêtre. Sur bureau on suit le chemin de fermeture **normal** de la fenêtre
+  /// (désactivation du blocage, puis `close`) plutôt que `destroy()` : l'arrêt du moteur Flutter
+  /// se fait alors exactement comme pour n'importe quelle application Flutter, sans court-circuiter
+  /// la boucle de messages de Windows (c'est là que le plantage à la fermeture se produisait).
   Future<void> destroy() async {
     if (_destroyed) return;
     _destroyed = true;
+    log?.call('fenêtre : fermeture demandée');
     if (!isDesktop) {
       exit(0);
     }
     try {
-      // On ne veut plus d'événements : la fenêtre est sur le point de disparaître.
-      windowManager.removeListener(this);
+      // Laisse se terminer les opérations réseau/sockets fermées juste avant (sous Windows leur
+      // achèvement est asynchrone) avant d'arrêter le moteur : fermer la fenêtre pendant qu'elles
+      // se terminent est une cause classique de plantage à la sortie.
+      await Future<void>.delayed(const Duration(milliseconds: 400));
+      windowManager.removeListener(this); // plus d'événements : la fenêtre va disparaître
       await windowManager.setPreventClose(false);
-      await windowManager.destroy();
-    } catch (_) {
-      // la fenêtre est peut-être déjà partie
+      log?.call('fenêtre : blocage levé, appel de close()');
+      await windowManager.close();
+      log?.call('fenêtre : close() accepté');
+    } catch (e) {
+      log?.call('fenêtre : erreur $e');
     }
-    // Filet de sécurité : si le processus est toujours là 3 s après, on le termine.
-    Future<void>.delayed(const Duration(seconds: 3), () => exit(0));
+    // Filet de sécurité : si le processus est toujours là 4 s après, on le termine.
+    Future<void>.delayed(const Duration(seconds: 4), () {
+      log?.call('fenêtre : toujours en vie après 4 s, exit(0)');
+      exit(0);
+    });
   }
 }

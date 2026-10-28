@@ -1,6 +1,6 @@
 Application Vibe-coded.
 
-# Étude Timer (Flutter edition, v2.2)
+# Étude Timer (Flutter edition, v2.2.1)
 
 App for Windows/Linux **and Android** (phone and tablet) that tracks study time per course, with two timer methods
 (Pomodoro, Flow Zone), statistics (heatmap, graphs, weekly/monthly summary, exam-cram periods) and
@@ -126,6 +126,7 @@ with the build scripts; the zipped/compressed size is what matters for distribut
 
 - `data.json` — your data (same location and format family as the Electron version; it is simply picked up).
 - `location.json` — pointer to a custom data folder (Settings → Data location).
+- `close.log` — step-by-step log of the last shutdown (no study data); if the app ever crashes on exit, the last line shows how far it got.
 - `device.json` — settings specific to this computer (WebDAV credentials, last sync, quadrimester filter). **Never uploaded.**
 
 Portable mode: create a folder named `EtudeTimerData` next to the executable (the Windows build script
@@ -178,7 +179,7 @@ flutter test
 They cover the store (including reading a 1.x `data.json`), sync/merge (two simulated machines with an
 in-memory server, plans included), the WebDAV client (against a local fake server), Pomodoro/Flow state
 machines (fake clock), statistics (including per-course totals), blocus, the quadrimester filter and
-legacy migration, the planning calendar, the single-instance lock and the Android project patch (117 tests).
+legacy migration, the planning calendar, the single-instance lock and the Android project patch (118 tests).
 
 ## Project layout
 
