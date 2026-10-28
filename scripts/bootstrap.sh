@@ -15,6 +15,6 @@ flutter create --platforms=windows,linux,android --project-name etude_timer --or
 rm -f test/widget_test.dart
 flutter pub get
 # Sans cette étape, l'APK « release » n'a pas la permission INTERNET (la synchro WebDAV échouerait).
-dart tool/patch_android.dart .
+dart tool/patch_android.dart . "$@"
 echo
 echo "Prêt. Pour lancer en développement :  flutter run -d linux   (ou -d windows, ou un appareil Android branché : flutter run)"

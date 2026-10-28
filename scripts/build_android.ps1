@@ -8,11 +8,13 @@ Set-Location (Join-Path $PSScriptRoot '..')
 if (-not (Test-Path android)) { Write-Error "Dossier android/ absent : lance d'abord scripts\bootstrap.ps1" }
 
 flutter build apk --release --split-per-abi --split-debug-info=build/debug-info
+if ($LASTEXITCODE -ne 0) { Write-Error "Le build Android a echoue (voir les messages ci-dessus ; README > Depannage Android)." }
 New-Item -ItemType Directory -Force dist | Out-Null
 Copy-Item build\app\outputs\flutter-apk\app-*-release.apk dist\ -Force
 
 if ($Aab) {
   flutter build appbundle --release --split-debug-info=build/debug-info
+  if ($LASTEXITCODE -ne 0) { Write-Error "Le build du bundle a echoue." }
   Copy-Item build\app\outputs\bundle\release\app-release.aab dist\EtudeTimer.aab -Force
 }
 

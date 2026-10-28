@@ -47,6 +47,28 @@ void main() {
     });
   });
 
+  group('option --no-ndk', () {
+    test('neutralise ndkVersion = flutter.ndkVersion (Kotlin DSL) et reste idempotent', () {
+      const kts = '''android {
+    namespace = "be.etudetimer.etude_timer"
+    compileSdk = flutter.compileSdkVersion
+    ndkVersion = flutter.ndkVersion
+    defaultConfig { minSdk = flutter.minSdkVersion }
+}
+''';
+      final out = removeNdkVersion(kts);
+      expect(out, isNot(contains('ndkVersion = flutter.ndkVersion')));
+      expect(out, contains('    // ndkVersion retiré'));
+      expect(out, contains('compileSdk = flutter.compileSdkVersion'));
+      expect(removeNdkVersion(out), equals(out));
+    });
+
+    test('Groovy : ndkVersion flutter.ndkVersion', () {
+      const groovy = "android {\n    ndkVersion flutter.ndkVersion\n}\n";
+      expect(removeNdkVersion(groovy), isNot(contains('flutter.ndkVersion')));
+    });
+  });
+
   group('stockage mobile', () {
     test('AppPaths.at : données et réglages locaux dans le dossier privé, sans portable', () {
       final p = AppPaths.at('/data/user/0/app/files/etude-timer');

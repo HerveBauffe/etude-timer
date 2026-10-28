@@ -1,6 +1,6 @@
 Application Vibe-coded.
 
-# Étude Timer (Flutter edition, v2.2.1)
+# Étude Timer (Flutter edition, v2.2.2)
 
 App for Windows/Linux **and Android** (phone and tablet) that tracks study time per course, with two timer methods
 (Pomodoro, Flow Zone), statistics (heatmap, graphs, weekly/monthly summary, exam-cram periods) and
@@ -77,6 +77,23 @@ Build (needs the Android SDK and JDK 17, see `flutter doctor`):
 flutter run                       # on a connected device/emulator
 ./scripts/build_android.sh        # → dist/app-arm64-v8a-release.apk (+ other ABIs); --aab for a bundle
 ```
+
+### Android troubleshooting
+
+- **`Android sdkmanager did not install NDK 28.2.13676358`** — Flutter asks Gradle for a given NDK and
+  Gradle tries to install it with `sdkmanager`; that step fails when the command-line tools are missing,
+  licenses are not accepted, or the JDK is too new for the old `sdkmanager`. Fix, in this order:
+  1. Android Studio → *SDK Manager → SDK Tools*: tick **Android SDK Command-line Tools (latest)**, and
+     (with *Show Package Details*) **NDK (Side by side) 28.2.13676358**, then Apply.
+  2. `flutter doctor --android-licenses` (accept everything), then `flutter doctor -v`.
+  3. Point Flutter at Android Studio's bundled JDK: `flutter config --jdk-dir "<Android Studio>\jbr"`.
+  4. Still failing? This app has **no native code**, so it does not need the NDK:
+     `dart tool/patch_android.dart . --no-ndk` removes the `ndkVersion` line from
+     `android/app/build.gradle.kts` (or run `./scripts/bootstrap.sh --no-ndk`). Release builds may then
+     print a harmless "unable to strip native libraries" warning.
+- **`WARNING: A restricted method in java.lang.System has been called … --enable-native-access`** — a
+  harmless notice from Gradle running on a recent JDK (24+); it does not stop the build. Using JDK 17/21
+  (step 3 above) makes it disappear.
 
 Without a signing key (`android/key.properties`), release builds are signed with the debug key: fine to
 install on your own devices, not for publishing.
@@ -179,7 +196,7 @@ flutter test
 They cover the store (including reading a 1.x `data.json`), sync/merge (two simulated machines with an
 in-memory server, plans included), the WebDAV client (against a local fake server), Pomodoro/Flow state
 machines (fake clock), statistics (including per-course totals), blocus, the quadrimester filter and
-legacy migration, the planning calendar, the single-instance lock and the Android project patch (118 tests).
+legacy migration, the planning calendar, the single-instance lock and the Android project patch (120 tests).
 
 ## Project layout
 

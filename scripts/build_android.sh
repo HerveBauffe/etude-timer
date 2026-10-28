@@ -9,7 +9,7 @@ cd "$(dirname "$0")/.."
 
 flutter build apk --release --split-per-abi --split-debug-info=build/debug-info
 mkdir -p dist
-cp build/app/outputs/flutter-apk/app-*-release.apk dist/ 2>/dev/null || true
+cp build/app/outputs/flutter-apk/app-*-release.apk dist/
 
 if [ "${1:-}" = "--aab" ]; then
   flutter build appbundle --release --split-debug-info=build/debug-info

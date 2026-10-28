@@ -5,14 +5,19 @@
 //  * sauvegarde automatique Android : les données d'étude sont sauvegardées, mais PAS
 //    `device.json` (il contient le mot de passe WebDAV en clair).
 //
-// Usage : dart tool/patch_android.dart [dossier-du-projet]
+// Usage : dart tool/patch_android.dart [dossier-du-projet] [--no-ndk]
+//   --no-ndk : retire `ndkVersion = flutter.ndkVersion` du build.gradle de l'appli. Cette appli
+//              n'a aucun code natif : si Gradle n'arrive pas à installer le NDK demandé par Flutter
+//              (« Android sdkmanager did not install NDK »), cela évite d'en avoir besoin.
 // Idempotent : peut être relancé sans risque.
 import 'dart:io';
 
 const _label = 'Étude Timer';
 
 void main(List<String> args) {
-  final root = args.isNotEmpty ? args.first : '.';
+  final positional = args.where((a) => !a.startsWith('--')).toList();
+  final root = positional.isNotEmpty ? positional.first : '.';
+  final noNdk = args.contains('--no-ndk');
   final manifest = File('$root/android/app/src/main/AndroidManifest.xml');
   if (!manifest.existsSync()) {
     stderr.writeln('AndroidManifest.xml introuvable dans $root/android — lance d\'abord `flutter create --platforms=android .`');
@@ -25,7 +30,27 @@ void main(List<String> args) {
   File('${xmlDir.path}/backup_rules.xml').writeAsStringSync(backupRules);
   File('${xmlDir.path}/data_extraction_rules.xml').writeAsStringSync(dataExtractionRules);
   stdout.writeln('Projet Android adapté (INTERNET, nom, règles de sauvegarde).');
+
+  if (noNdk) {
+    var found = false;
+    for (final name in ['build.gradle.kts', 'build.gradle']) {
+      final f = File('$root/android/app/$name');
+      if (!f.existsSync()) continue;
+      found = true;
+      final before = f.readAsStringSync();
+      final after = removeNdkVersion(before);
+      if (after != before) f.writeAsStringSync(after);
+      stdout.writeln(after != before ? 'ndkVersion retiré de android/app/$name.' : 'Pas de ndkVersion à retirer dans android/app/$name.');
+    }
+    if (!found) stderr.writeln('android/app/build.gradle(.kts) introuvable : --no-ndk ignoré.');
+  }
 }
+
+/// Fonction pure (testable) : neutralise la ligne `ndkVersion = flutter.ndkVersion`.
+String removeNdkVersion(String gradle) => gradle.replaceAllMapped(
+      RegExp(r'^([ \t]*)ndkVersion\s*=?\s*flutter\.ndkVersion[ \t]*$', multiLine: true),
+      (m) => '${m[1]}// ndkVersion retiré (tool/patch_android.dart --no-ndk) : aucun code natif dans cette appli',
+    );
 
 /// Fonction pure (testable) : applique les modifications au texte du manifeste.
 String patchManifest(String xml) {
