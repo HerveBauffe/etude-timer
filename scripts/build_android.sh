@@ -7,6 +7,9 @@ cd "$(dirname "$0")/.."
 
 [ -d android ] || { echo "Dossier android/ absent : lance d'abord ./scripts/bootstrap.sh" >&2; exit 1; }
 
+# Idempotent : applique le patch Android (notifications, service, alarme…) même si android/ date d'une ancienne version.
+dart tool/patch_android.dart .
+
 flutter build apk --release --split-per-abi --split-debug-info=build/debug-info
 mkdir -p dist
 cp build/app/outputs/flutter-apk/app-*-release.apk dist/

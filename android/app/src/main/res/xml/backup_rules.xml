@@ -2,4 +2,5 @@
 <!-- Sauvegarde Android (Android 11 et moins) : tout sauf les réglages propres à l'appareil. -->
 <full-backup-content>
     <exclude domain="file" path="etude-timer/device.json"/>
+    <exclude domain="file" path="etude-timer/session.json"/>
 </full-backup-content>

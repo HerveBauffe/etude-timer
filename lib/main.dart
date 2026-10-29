@@ -7,7 +7,9 @@ import 'core/data_store.dart';
 import 'core/device_config.dart';
 import 'core/paths.dart';
 import 'core/single_instance.dart';
+import 'core/session.dart';
 import 'platform/alerts.dart';
+import 'platform/session_android.dart';
 import 'platform/window_service.dart';
 import 'ui/app.dart';
 import 'ui/controller.dart';
@@ -46,13 +48,37 @@ Future<void> main() async {
 
   await window.init();
 
+  final alerts = AlertService();
+
+  // Android : notification persistante + alarme de fin de phase (le chrono continue écran éteint).
+  AppController? ref;
+  AndroidSessionBackend? sessionBackend;
+  String? sessionError;
+  if (Platform.isAndroid) {
+    try {
+      final b = AndroidSessionBackend(onToggleRequested: () => ref?.toggleSessionPause());
+      await b.init();
+      alerts.nativeAlerts = () => b.notificationsEnabled;
+      sessionBackend = b;
+    } catch (e) {
+      sessionBackend = null; // l'appli reste utilisable sans la notification
+      sessionError = e.toString();
+    }
+  }
+
   final controller = AppController(
     paths: paths,
     store: store,
     device: device,
-    alerts: AlertService(),
+    alerts: alerts,
     window: window,
+    sessionBackend: sessionBackend,
+    sessionStore: sessionBackend == null ? null : SessionStore(paths.sessionFile),
+    sessionPermissions: sessionBackend,
+    sessionInitError: sessionError,
   )..attachInstance(instance);
+  ref = controller;
+  controller.restoreSession();
 
   runApp(EtudeTimerApp(controller: controller));
   controller.start();

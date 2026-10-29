@@ -20,6 +20,7 @@ class AppPaths {
   static const String dataFileName = 'data.json';
   static const String locationFileName = 'location.json';
   static const String deviceFileName = 'device.json';
+  static const String sessionFileName = 'session.json';
 
   final String bootstrapDir;
   final bool isPortable;
@@ -73,6 +74,9 @@ class AppPaths {
 
   String get locationFile => join(bootstrapDir, locationFileName);
   String get deviceFile => join(bootstrapDir, deviceFileName);
+
+  /// Séance en cours (mobile) : permet de la retrouver si le système tue l'appli. Local à l'appareil.
+  String get sessionFile => join(bootstrapDir, sessionFileName);
   String dataFileIn(String dir) => join(dir, dataFileName);
 
   /// Dossier de données effectif : celui du pointeur s'il existe, sinon le dossier d'amorçage.

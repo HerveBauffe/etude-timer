@@ -9,7 +9,7 @@ import '../layout.dart';
 import '../theme.dart';
 import '../widgets/dialogs.dart';
 
-const String appVersion = '2.2.2';
+const String appVersion = '2.3.2';
 
 class SettingsScreen extends StatelessWidget {
   final AppController c;
@@ -33,6 +33,7 @@ class SettingsScreen extends StatelessWidget {
               _PomodoroSection(c: c),
               _FlowSection(c: c),
               _AppearanceSection(c: c),
+              if (c.sessionPermissions != null) _BackgroundSection(c: c),
               if (isMobilePlatform) _MobileDataSection(c: c) else _DataSection(c: c),
               _WebdavSection(c: c),
             ],
@@ -223,6 +224,90 @@ class _AppearanceSection extends StatelessWidget {
               onSelected: (_) => c.store.updateSettings((x) => x.palette = p.id),
             ),
         ]),
+      ],
+    );
+  }
+}
+
+/// Android : le chrono continue écran éteint grâce à une notification persistante ; deux
+/// autorisations du système le rendent plus fiable.
+class _BackgroundSection extends StatefulWidget {
+  final AppController c;
+  const _BackgroundSection({required this.c});
+
+  @override
+  State<_BackgroundSection> createState() => _BackgroundSectionState();
+}
+
+class _BackgroundSectionState extends State<_BackgroundSection> with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _refresh();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _refresh(); // retour des réglages Android
+  }
+
+  Future<void> _refresh() async {
+    await widget.c.sessionPermissions?.refresh();
+    if (mounted) setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final perms = widget.c.sessionPermissions!;
+    final scheme = Theme.of(context).colorScheme;
+    final text = Theme.of(context).textTheme;
+    final ok = perms.notificationsEnabled;
+    return _Section(
+      title: 'Chrono en arrière-plan',
+      subtitle: "Écran éteint ou appli en arrière-plan, le chrono continue : une notification affiche le temps "
+          "avec un bouton Pause / Reprendre, et sonne à la fin du bloc ou de la pause.",
+      children: [
+        Row(children: [
+          Icon(ok ? Icons.check_circle_outline : Icons.notifications_off_outlined, color: ok ? scheme.primary : scheme.error),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              ok ? 'Notifications autorisées.' : 'Notifications désactivées : autorise-les pour voir le chrono et être prévenu à la fin.',
+              style: text.bodyMedium,
+            ),
+          ),
+        ]),
+        const SizedBox(height: 12),
+        Wrap(spacing: 8, runSpacing: 8, children: [
+          if (!ok)
+            FilledButton.icon(
+              onPressed: () async {
+                await perms.requestNotifications();
+                if (mounted) setState(() {});
+              },
+              icon: const Icon(Icons.notifications_active_outlined),
+              label: const Text('Autoriser les notifications'),
+            ),
+          OutlinedButton.icon(
+            onPressed: perms.requestFullScreen,
+            icon: const Icon(Icons.screen_lock_portrait_outlined),
+            label: const Text("Réveil de l'écran (plein écran)"),
+          ),
+        ]),
+        const SizedBox(height: 10),
+        Text(
+          "Sur Android 14 et plus, « notifications plein écran » doit être autorisé pour que l'écran s'allume à la fin d'une phase. "
+          "Certains téléphones (Xiaomi, Huawei, Samsung…) arrêtent les applis en arrière-plan : si le chrono s'arrête, "
+          "désactive l'optimisation de la batterie pour Étude Timer.",
+          style: text.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+        ),
       ],
     );
   }

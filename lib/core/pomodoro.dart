@@ -157,6 +157,45 @@ class PomodoroEngine {
     }
   }
 
+  // ───────────── Persistance (reprise après arrêt du processus) ─────────────
+
+  Map<String, dynamic> toJson() => {
+        'phase': phase.name,
+        'blockIndex': blockIndex,
+        'totalSeconds': totalSeconds,
+        'paused': paused,
+        'courseId': courseId,
+        'elapsedBeforePause': _elapsedBeforePause,
+        'segmentStart': _segmentStart?.toUtc().toIso8601String(),
+        'overtimeNotified': _overtimeNotified,
+      };
+
+  /// Remet le moteur dans l'état sauvegardé. Le temps passé « mort » (appli tuée) compte comme
+  /// du temps écoulé, puisque le modèle est basé sur l'horloge : un chrono qui tournait continue.
+  void restore(Map<String, dynamic> j) {
+    phase = PomoPhase.values.asNameMap()[j['phase']] ?? PomoPhase.idle;
+    blockIndex = (j['blockIndex'] as num?)?.toInt() ?? 1;
+    totalSeconds = (j['totalSeconds'] as num?)?.toInt() ?? 0;
+    paused = j['paused'] == true;
+    courseId = j['courseId'] as String?;
+    _elapsedBeforePause = (j['elapsedBeforePause'] as num?)?.toDouble() ?? 0;
+    final seg = j['segmentStart'];
+    _segmentStart = seg is String ? DateTime.tryParse(seg)?.toLocal() : null;
+    _overtimeNotified = j['overtimeNotified'] == true;
+    // Phase « en cours » sans repère de temps exploitable : on repart au repos plutôt que de planter.
+    if (isRunning && !paused && _segmentStart == null) phase = PomoPhase.idle;
+    // Objectif déjà dépassé : l'alerte a (ou aurait) été donnée pendant que l'appli ne tournait pas.
+    if (phase == PomoPhase.work && remainingSeconds <= 0) _overtimeNotified = true;
+  }
+
+  /// Plafonne le temps écoulé et met en pause (reprise d'une séance très ancienne).
+  void capElapsed(double maxSeconds) {
+    if (!isRunning || elapsedSeconds <= maxSeconds) return;
+    _elapsedBeforePause = maxSeconds;
+    _segmentStart = null;
+    paused = true;
+  }
+
   /// Depuis « Nouveau cycle ».
   void resetToIdle() {
     if (phase == PomoPhase.cycleComplete || phase == PomoPhase.breakEnded) {

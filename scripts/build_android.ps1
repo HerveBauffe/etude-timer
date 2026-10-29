@@ -7,6 +7,10 @@ Set-Location (Join-Path $PSScriptRoot '..')
 
 if (-not (Test-Path android)) { Write-Error "Dossier android/ absent : lance d'abord scripts\bootstrap.ps1" }
 
+# Idempotent : applique le patch Android (notifications, service, alarme...) meme si android/ date d'une ancienne version.
+dart tool/patch_android.dart .
+if ($LASTEXITCODE -ne 0) { Write-Error "patch_android a echoue." }
+
 flutter build apk --release --split-per-abi --split-debug-info=build/debug-info
 if ($LASTEXITCODE -ne 0) { Write-Error "Le build Android a echoue (voir les messages ci-dessus ; README > Depannage Android)." }
 New-Item -ItemType Directory -Force dist | Out-Null

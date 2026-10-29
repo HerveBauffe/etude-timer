@@ -1,12 +1,13 @@
 name: etude_timer
 description: Suivi du temps d'étude par cours — Pomodoro, Flow Zone, statistiques, blocus et synchronisation WebDAV.
 publish_to: none
-version: 2.2.2+1
+version: 2.3.2+1
 
 environment:
-  sdk: ">=3.9.0 <4.0.0"
+  sdk: ">=3.10.0 <4.0.0"
+  flutter: ">=3.38.1"
 
-# Volontairement minimal : trois plugins seulement (fenêtre, sélecteur de dossier, dossier privé mobile).
+# Volontairement minimal : quatre plugins seulement (fenêtre, sélecteur de dossier, dossier privé mobile, notifications Android).
 # Tout le reste (stockage JSON, WebDAV, minuteurs, stats, graphiques) est du Dart pur,
 # pour garder l'exécutable le plus léger possible.
 dependencies:
@@ -15,6 +16,10 @@ dependencies:
   window_manager: ^0.5.0
   file_selector: ^1.0.3
   path_provider: ^2.1.5   # dossier privé de l'appli sur Android/iOS
+  # Android : notification persistante + alarme de fin de phase (le plugin est aussi résolu sur
+  # bureau mais n'y est jamais appelé).
+  flutter_local_notifications: ^22.3.3
+  timezone: ^0.11.0
 
 dev_dependencies:
   flutter_test:

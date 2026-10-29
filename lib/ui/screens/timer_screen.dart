@@ -349,11 +349,23 @@ class _FlowCore extends StatelessWidget {
           icon: const Icon(Icons.play_arrow),
           label: const Text('Démarrer'),
         ),
-      FlowPhase.working => FilledButton.icon(
-          style: FilledButton.styleFrom(backgroundColor: scheme.error, foregroundColor: scheme.onError),
-          onPressed: c.stopFlow,
-          icon: const Icon(Icons.stop),
-          label: const Text('Arrêter'),
+      FlowPhase.working => Wrap(
+          alignment: WrapAlignment.center,
+          spacing: 12,
+          runSpacing: 8,
+          children: [
+            OutlinedButton.icon(
+              onPressed: c.toggleFlowPause,
+              icon: Icon(f.paused ? Icons.play_arrow : Icons.pause),
+              label: Text(f.paused ? 'Reprendre' : 'Pause'),
+            ),
+            FilledButton.icon(
+              style: FilledButton.styleFrom(backgroundColor: scheme.error, foregroundColor: scheme.onError),
+              onPressed: c.stopFlow,
+              icon: const Icon(Icons.stop),
+              label: const Text('Arrêter'),
+            ),
+          ],
         ),
       FlowPhase.breakTime => OutlinedButton.icon(
           onPressed: c.stopFlowBreak,
@@ -375,7 +387,7 @@ class _FlowCore extends StatelessWidget {
               final e = f.elapsedSeconds;
               digits = formatHMS(e);
               progress = (e % 3600) / 3600; // un tour d'anneau par heure
-              label = 'Dans la zone';
+              label = f.paused ? 'En pause' : 'Dans la zone';
             } else if (f.phase == FlowPhase.breakTime) {
               final rem = f.breakRemainingSeconds;
               digits = formatHMS(rem.ceil());

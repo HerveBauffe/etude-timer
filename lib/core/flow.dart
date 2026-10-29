@@ -14,7 +14,14 @@ class FlowEngine {
   FlowPhase phase = FlowPhase.idle;
   String? courseId;
 
+  /// Début de la séance (sert à dater l'enregistrement).
   DateTime? _startedAt;
+
+  /// Temps de travail effectif : cumul avant la pause en cours + segment actif depuis `_segmentStart`.
+  int _elapsedBeforeMs = 0;
+  DateTime? _segmentStart;
+  bool paused = false;
+
   int reviewSeconds = 0;
   DateTime? _breakEndsAt;
   int breakTotalSeconds = 0;
@@ -30,7 +37,8 @@ class FlowEngine {
 
   int get elapsedSeconds {
     if (phase == FlowPhase.working && _startedAt != null) {
-      return now().difference(_startedAt!).inMilliseconds ~/ 1000;
+      final seg = (paused || _segmentStart == null) ? 0 : now().difference(_segmentStart!).inMilliseconds;
+      return (_elapsedBeforeMs + seg) ~/ 1000;
     }
     return phase == FlowPhase.review ? reviewSeconds : 0;
   }
@@ -51,12 +59,29 @@ class FlowEngine {
     courseId = course;
     phase = FlowPhase.working;
     _startedAt = now();
+    _segmentStart = _startedAt;
+    _elapsedBeforeMs = 0;
+    paused = false;
+  }
+
+  /// Pause / reprise du chronomètre (le temps en pause n'est pas compté).
+  void togglePause() {
+    if (phase != FlowPhase.working || _startedAt == null) return;
+    if (paused) {
+      _segmentStart = now();
+      paused = false;
+    } else {
+      if (_segmentStart != null) _elapsedBeforeMs += now().difference(_segmentStart!).inMilliseconds;
+      _segmentStart = null;
+      paused = true;
+    }
   }
 
   /// Arrête le chronomètre → écran de bilan.
   void stop() {
     if (phase != FlowPhase.working || _startedAt == null) return;
-    reviewSeconds = now().difference(_startedAt!).inSeconds;
+    reviewSeconds = elapsedSeconds;
+    paused = false;
     phase = FlowPhase.review;
   }
 
@@ -95,7 +120,7 @@ class FlowEngine {
   /// Retourne true si une séance a été enregistrée.
   bool flushOnClose() {
     if ((phase == FlowPhase.working || phase == FlowPhase.review) && _startedAt != null && courseId != null) {
-      final secs = phase == FlowPhase.review ? reviewSeconds : now().difference(_startedAt!).inSeconds;
+      final secs = phase == FlowPhase.review ? reviewSeconds : elapsedSeconds;
       final start = _startedAt!;
       phase = FlowPhase.idle;
       if (secs >= 1) {
@@ -104,5 +129,42 @@ class FlowEngine {
       }
     }
     return false;
+  }
+
+  // ───────────── Persistance (reprise après arrêt du processus) ─────────────
+
+  Map<String, dynamic> toJson() => {
+        'phase': phase.name,
+        'courseId': courseId,
+        'startedAt': _startedAt?.toUtc().toIso8601String(),
+        'elapsedBeforeMs': _elapsedBeforeMs,
+        'segmentStart': _segmentStart?.toUtc().toIso8601String(),
+        'paused': paused,
+        'reviewSeconds': reviewSeconds,
+        'breakEndsAt': _breakEndsAt?.toUtc().toIso8601String(),
+        'breakTotalSeconds': breakTotalSeconds,
+      };
+
+  void restore(Map<String, dynamic> j) {
+    DateTime? d(Object? v) => v is String ? DateTime.tryParse(v)?.toLocal() : null;
+    phase = FlowPhase.values.asNameMap()[j['phase']] ?? FlowPhase.idle;
+    courseId = j['courseId'] as String?;
+    _startedAt = d(j['startedAt']);
+    _elapsedBeforeMs = (j['elapsedBeforeMs'] as num?)?.toInt() ?? 0;
+    _segmentStart = d(j['segmentStart']);
+    paused = j['paused'] == true;
+    reviewSeconds = (j['reviewSeconds'] as num?)?.toInt() ?? 0;
+    _breakEndsAt = d(j['breakEndsAt']);
+    breakTotalSeconds = (j['breakTotalSeconds'] as num?)?.toInt() ?? 0;
+    if (phase == FlowPhase.working && (_startedAt == null || (!paused && _segmentStart == null))) phase = FlowPhase.idle;
+    if (phase == FlowPhase.breakTime && _breakEndsAt == null) phase = FlowPhase.idle;
+  }
+
+  /// Plafonne le temps de travail et met en pause (reprise d'une séance très ancienne).
+  void capElapsed(int maxSeconds) {
+    if (phase != FlowPhase.working || elapsedSeconds <= maxSeconds) return;
+    _elapsedBeforeMs = maxSeconds * 1000;
+    _segmentStart = null;
+    paused = true;
   }
 }

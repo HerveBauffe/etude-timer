@@ -12,6 +12,10 @@ import 'package:flutter/services.dart';
 class AlertService {
   bool _soundBusy = false;
 
+  /// Android : la notification système de fin de phase (son + vibration) est active, inutile de
+  /// vibrer en plus depuis l'appli.
+  bool Function() nativeAlerts = () => false;
+
   bool get _mobile => Platform.isAndroid || Platform.isIOS;
 
   Future<void> playSound() async {
@@ -19,8 +23,8 @@ class AlertService {
     _soundBusy = true;
     try {
       if (_mobile) {
+        if (nativeAlerts()) return;
         // Android n'a pas de « bip système » utilisable depuis Flutter : on vibre (3 impulsions).
-        // Le son et la notification quand l'écran est éteint demanderont un service d'arrière-plan.
         for (var i = 0; i < 3; i++) {
           await HapticFeedback.vibrate();
           await Future<void>.delayed(const Duration(milliseconds: 350));

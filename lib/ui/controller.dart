@@ -11,6 +11,7 @@ import '../core/models.dart';
 import '../core/paths.dart';
 import '../core/pomodoro.dart';
 import '../core/quadri.dart';
+import '../core/session.dart';
 import '../core/single_instance.dart';
 import '../core/sync.dart';
 import '../core/webdav_client.dart';
@@ -29,6 +30,14 @@ class AppController extends ChangeNotifier {
   final DeviceConfig device;
   final AlertService alerts;
   final WindowService window;
+
+  /// Autorisations de la notification du chrono (Android) ; null ailleurs.
+  final SessionPermissions? sessionPermissions;
+
+  /// Séance en arrière-plan (Android : notification + alarme) ; null sur bureau.
+  SessionCoordinator? _session;
+  bool _restoring = false;
+  String? _restoreMessage;
 
   /// Journal de fermeture (diagnostic d'un éventuel plantage en quittant).
   late final CloseLog closeLog = CloseLog(paths.join(paths.bootstrapDir, 'close.log'))..reset();
@@ -71,7 +80,14 @@ class AppController extends ChangeNotifier {
     required this.device,
     required this.alerts,
     required this.window,
+    SessionBackend? sessionBackend,
+    SessionStore? sessionStore,
+    this.sessionPermissions,
+    String? sessionInitError,
   }) {
+    _restoreMessage = sessionInitError == null
+        ? null
+        : 'Notification du chrono indisponible : $sessionInitError (relance le build avec scripts/build_android).';
     pomodoro = PomodoroEngine(
       settings: () => store.data.settings,
       onWorkLogged: _logPomodoroWork,
@@ -83,6 +99,15 @@ class AppController extends ChangeNotifier {
       onBreakEnded: _onFlowBreakEnded,
     );
     sync = SyncService(store, device, () => WebDavClient(device.webdav));
+    if (sessionBackend != null && sessionStore != null) {
+      _session = SessionCoordinator(
+        pomodoro: pomodoro,
+        flow: flow,
+        store: sessionStore,
+        backend: sessionBackend,
+        courseLabel: courseLabel,
+      )..onError = (e) => showMessage('Notification du chrono impossible : $e');
+    }
     store.addListener(_onStoreChanged);
     window.onCloseRequested = shutdown;
     window.log = closeLog.add;
@@ -94,11 +119,60 @@ class AppController extends ChangeNotifier {
 
   /// À appeler une fois l'UI affichée : première synchro + synchro périodique.
   void start() {
+    final msg = _restoreMessage;
+    _restoreMessage = null;
+    if (msg != null) Future<void>.delayed(const Duration(milliseconds: 800), () => showMessage(msg));
     _restartSyncTimer();
     if (device.webdav.isUsable) unawaited(syncNow(silent: true));
   }
 
   bool _shuttingDown = false;
+
+  /// Android : reprend la séance qui tournait quand l'appli a été fermée / tuée (le temps écoulé est
+  /// recalculé d'après l'horloge). À appeler avant d'afficher l'interface.
+  void restoreSession() {
+    final c = _session;
+    if (c == null) return;
+    _restoring = true; // pas d'alerte (son, message) pour ce qui s'est passé pendant l'absence
+    try {
+      final r = c.restore();
+      if (!r.restored) {
+        _syncSession(force: true); // aucune séance : retire une éventuelle notification restée affichée
+        return;
+      }
+      if (r.mode == 'flow') {
+        mode = TimerMode.flow;
+        selectedCourseId = flow.courseId;
+      } else {
+        mode = TimerMode.pomodoro;
+        selectedCourseId = pomodoro.courseId;
+      }
+      pomodoro.tick(); // rattrape une pause terminée pendant l'absence
+      flow.tick();
+      if (r.stale) {
+        _restoreMessage = 'Séance restaurée : elle semblait oubliée, le temps a été plafonné et mis en pause.';
+      }
+    } finally {
+      _restoring = false;
+    }
+    _refreshTicker();
+  }
+
+  void _syncSession({bool force = false}) {
+    final c = _session;
+    if (c == null || _shuttingDown) return;
+    unawaited(c.sync(force: force));
+  }
+
+  /// Bouton Pause / Reprendre (notification Android) : agit sur la séance en cours.
+  void toggleSessionPause() {
+    if (_shuttingDown) return;
+    if (pomodoro.isRunning) {
+      togglePomodoroPause();
+    } else if (flow.phase == FlowPhase.working) {
+      toggleFlowPause();
+    }
+  }
 
   /// Fermeture : enregistre le travail en cours, synchronise une dernière fois (5 s max) et libère
   /// le verrou. Idempotente. La fenêtre est détruite ensuite par [WindowService].
@@ -278,6 +352,7 @@ class AppController extends ChangeNotifier {
       _ticker = null;
     }
     tick.value++;
+    _syncSession();
   }
 
   void startPomodoro() {
@@ -310,6 +385,7 @@ class AppController extends ChangeNotifier {
 
   void newPomodoroCycle() {
     pomodoro.resetToIdle();
+    _syncSession();
     _notifySafe();
   }
 
@@ -317,6 +393,12 @@ class AppController extends ChangeNotifier {
     final c = selectedCourseId;
     if (c == null) return;
     flow.start(c);
+    _refreshTicker();
+    _notifySafe();
+  }
+
+  void toggleFlowPause() {
+    flow.togglePause();
     _refreshTicker();
     _notifySafe();
   }
@@ -373,6 +455,7 @@ class AppController extends ChangeNotifier {
   }
 
   void _alert(String title, String body) {
+    if (_restoring) return;
     unawaited(alerts.playSound());
     unawaited(alerts.notify(title, body));
     unawaited(window.bringToFront());
